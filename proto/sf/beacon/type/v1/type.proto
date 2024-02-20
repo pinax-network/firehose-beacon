@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+option go_package = "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1;pbbeacon";
+
+package sf.beacon.type.v1;
+
+message Block {
+  uint64 slot = 1;
+  uint64 proposer_index = 2;
+  string parent_root = 3;
+  string state_root = 4;
+}
