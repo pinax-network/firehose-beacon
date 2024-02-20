@@ -2,6 +2,7 @@ package blockfetcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
@@ -11,6 +12,7 @@ import (
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"go.uber.org/zap"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -27,6 +29,7 @@ type HttpFetcher struct {
 	fetchInterval            time.Duration
 	lastFetchAt              time.Time
 	logger                   *zap.Logger
+	seenBlockNums            *sync.Map
 }
 
 func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, logger *zap.Logger) *HttpFetcher {
@@ -35,6 +38,7 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 		fetchInterval:            fetchInterval,
 		latestBlockRetryInterval: latestBlockRetryInterval,
 		logger:                   logger,
+		seenBlockNums:            &sync.Map{},
 	}
 	return f
 }
@@ -78,16 +82,45 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 
 	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot), zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot))
 
-	// todo figure out if we need to handle skipped blocks
-
 	signedBlock, err := f.fetchSignedBlock(ctx, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) {
+			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
+			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
+			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
+			// we received the header before from Lighthouse, can we assume that it also is able to return the signed block?
+			switch apiErr.StatusCode {
+			case 404:
+				return nil, true, nil
+			}
+		}
 		return nil, false, fmt.Errorf("fetching signed block: %w", err)
 	}
 
+	// unfortunately, the signed block is missing the block root, so we need to request it separately here
 	blockHeader, err := f.fetchBlockHeader(ctx, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching block header: %w", err)
+	}
+
+	// the block header also doesn't include the parent slot, so we are going to buffer all seen blocks to avoid sending
+	// another request to get the parent block header
+	f.seenBlockNums.Store(blockHeader.Root.String(), uint64(blockHeader.Header.Message.Slot))
+
+	parentSlot := uint64(0)
+	if blockHeader.Header.Message.Slot > 0 {
+		if bufferedSlot, ok := f.seenBlockNums.Load(blockHeader.Header.Message.ParentRoot.String()); ok {
+			parentSlot = bufferedSlot.(uint64)
+			f.logger.Debug("found parent slot in our buffer", zap.Uint64("slot", requestedSlot), zap.String("parent_root", blockHeader.Header.Message.ParentRoot.String()), zap.Uint64("parent_slot", parentSlot))
+		} else {
+			f.logger.Debug("missing parent slot in our buffer, requesting from Lighthouse node", zap.Uint64("slot", requestedSlot), zap.String("parent_root", blockHeader.Header.Message.ParentRoot.String()))
+			parentBlockHeader, err := f.fetchBlockHeader(ctx, blockHeader.Header.Message.ParentRoot.String())
+			if err != nil {
+				return nil, false, fmt.Errorf("fetching parent block header: %w", err)
+			}
+			parentSlot = uint64(parentBlockHeader.Header.Message.Slot)
+		}
 	}
 
 	blobSidecars, err := f.fetchBlobSidecars(ctx, strconv.FormatUint(requestedSlot, 10))
@@ -95,25 +128,12 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 		return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
 	}
 
-	//blockResult, skip, err := f.fetch(ctx, requestedSlot)
-	//if err != nil {
-	//	return nil, false, fmt.Errorf("fetching block %d: %w", requestedSlot, err)
-	//}
-	//
-	//if skip {
-	//	return nil, true, nil
-	//}
-	//
-	//if blockResult == nil {
-	//	panic("blockResult is nil and skip is false. This should not happen.")
-	//}
-
-	block, err := toBlock(requestedSlot, f.latestFinalizedSlot, blockHeader, signedBlock, blobSidecars)
+	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, blockHeader, signedBlock, blobSidecars)
 	if err != nil {
 		return nil, false, fmt.Errorf("decoding block %d: %w", requestedSlot, err)
 	}
 
-	f.logger.Info("fetched block", zap.Uint64("slot", requestedSlot))
+	f.logger.Info("fetched block", zap.Uint64("slot", requestedSlot), zap.Uint64("parent_slot", parentSlot))
 	return block, false, nil
 }
 

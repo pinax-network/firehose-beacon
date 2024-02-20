@@ -9,16 +9,9 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func toBlock(slot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
+func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
 
 	libNum := finalizedSlot
-
-	// todo this doesn't work if we have skip-able blocks
-	parentSlot := slot
-	if parentSlot > 0 {
-		parentSlot -= 1
-	}
-
 	if finalizedSlot > slot {
 		libNum = parentSlot
 	}
@@ -54,7 +47,7 @@ func toBlock(slot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlo
 		Number:   slot,
 		Id:       header.Root.String(),
 		ParentId: parentRoot.String(),
-		// Timestamp: timestamppb.New(time.Unix(int64(signedBlock.Body.ExecutionPayload.Timestamp), 0)),
+		// Timestamp: todo figure out where to get from non deneb specs
 		LibNum:    libNum,
 		ParentNum: parentSlot,
 		Payload:   anyBlock,
