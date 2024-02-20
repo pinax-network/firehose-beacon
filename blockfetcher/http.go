@@ -6,9 +6,8 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
-	"github.com/rs/zerolog"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"go.uber.org/zap"
 	"strconv"
@@ -131,14 +130,14 @@ func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, block string) (*v1.B
 	return nil, fmt.Errorf("failed to fetch block header, no BeaconBlockHeadersProvider available")
 }
 
-func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, block string) (*deneb.BeaconBlock, error) {
+func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, block string) (*spec.VersionedSignedBeaconBlock, error) {
 	if provider, isProvider := f.httpClient.(eth2client.SignedBeaconBlockProvider); isProvider {
 		signedBlockResponse, err := provider.SignedBeaconBlock(ctx, &api.SignedBeaconBlockOpts{Block: block})
 		if err != nil {
 			return nil, err
 		}
 
-		return signedBlockResponse.Data.Deneb.Message, nil
+		return signedBlockResponse.Data, nil
 	}
 
 	return nil, fmt.Errorf("failed to fetch signed block, no SignedBeaconBlockProvider available")
@@ -155,75 +154,4 @@ func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, block string) ([]*d
 	}
 
 	return nil, fmt.Errorf("failed to fetch blob sidecar, no BlobSidecarsProvider available")
-}
-
-func main() {
-	// Provide a cancellable context to the creation function.
-	ctx := context.Background()
-	client, err := http.New(ctx,
-		// WithAddress supplies the address of the beacon node, as a URL.
-		http.WithAddress("http://localhost:5052/"),
-		// LogLevel supplies the level of logging to carry out.
-		http.WithLogLevel(zerolog.DebugLevel),
-		http.WithTimeout(10*time.Second),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("Connected to %s\n", client.Name())
-
-	// Client functions have their own interfaces.  Not all functions are
-	// supported by all clients, so checks should be made for each function when
-	// casting the service to the relevant interface.
-	//if provider, isProvider := client.(eth2client.GenesisProvider); isProvider {
-	//	genesisResponse, err := provider.Genesis(ctx, &api.GenesisOpts{})
-	//	if err != nil {
-	//		// Errors may be API errors, in which case they will have more detail
-	//		// about the failure.
-	//		var apiErr *api.Error
-	//		if errors.As(err, &apiErr) {
-	//			switch apiErr.StatusCode {
-	//			case 404:
-	//				panic("genesis not found")
-	//			case 503:
-	//				panic("node is syncing")
-	//			}
-	//		}
-	//		panic(err)
-	//	}
-	//	fmt.Printf("Genesis time is %v\n", genesisResponse.Data.GenesisTime)
-	//}
-
-	if provider, isProvider := client.(eth2client.SignedBeaconBlockProvider); isProvider {
-		blobSidecarsResponse, err := provider.SignedBeaconBlock(ctx, &api.SignedBeaconBlockOpts{Block: "finalized"})
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Printf("Received Block %v\n", blobSidecarsResponse.Data.Deneb.Message.Slot)
-	}
-
-	if provider, isProvider := client.(eth2client.BlobSidecarsProvider); isProvider {
-		blobSidecarsResponse, err := provider.BlobSidecars(ctx, &api.BlobSidecarsOpts{Block: "finalized"})
-		if err != nil {
-			panic(err)
-		}
-
-		for _, blob := range blobSidecarsResponse.Data {
-			fmt.Printf("Received Blob %v\n", blob.Index)
-		}
-	}
-
-	// You can also access the struct directly if required.
-	httpClient := client.(*http.Service)
-	genesisResponse, err := httpClient.Genesis(ctx, &api.GenesisOpts{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Genesis validators root is %s\n", genesisResponse.Data.GenesisValidatorsRoot)
-
-	// Cancelling the context passed to New() frees up resources held by the
-	// client, closes connections, clears handlers, etc.
-
 }
