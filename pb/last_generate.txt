@@ -1,2 +1,2 @@
-generate.sh - Tue Feb 20 11:14:42 CET 2024 - fred
+generate.sh - Tue Feb 20 11:58:02 CET 2024 - fred
 pinax-network/firehose-beacon/proto revision: b325ce1

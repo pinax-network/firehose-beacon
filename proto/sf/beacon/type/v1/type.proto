@@ -9,4 +9,14 @@ message Block {
   uint64 proposer_index = 2;
   string parent_root = 3;
   string state_root = 4;
+
+  repeated Blob blobs = 10;
+}
+
+message Blob {
+  uint64 index = 1;
+  bytes blob = 2;
+  string kzg_commitment = 3;
+  string kzg_proof = 4;
+  string kzg_commitment_inclusion_proof = 5;
 }

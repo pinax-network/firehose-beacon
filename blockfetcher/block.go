@@ -41,6 +41,8 @@ func toBlock(slot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlo
 		ProposerIndex: uint64(proposerIndex),
 		ParentRoot:    parentRoot.String(),
 		StateRoot:     stateRoot.String(),
+
+		Blobs: blobsToProto(blobSidecars),
 	}
 
 	anyBlock, err := anypb.New(beaconBlock)
@@ -59,4 +61,20 @@ func toBlock(slot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlo
 	}
 
 	return res, nil
+}
+
+func blobsToProto(blobSidecars []*deneb.BlobSidecar) []*pbbeacon.Blob {
+
+	res := make([]*pbbeacon.Blob, 0, len(blobSidecars))
+	for _, b := range blobSidecars {
+		res = append(res, &pbbeacon.Blob{
+			Index:         uint64(b.Index),
+			Blob:          b.Blob[:],
+			KzgCommitment: b.KZGCommitment.String(),
+			KzgProof:      b.KZGProof.String(),
+			// todo KzgCommitmentInclusionProof:,
+		})
+	}
+
+	return res
 }
