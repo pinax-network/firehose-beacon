@@ -105,7 +105,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 	}
 
 	// the block header also doesn't include the parent slot, so we are going to buffer all seen blocks to avoid sending
-	// another request to get the parent block header
+	// another request to get the parent block header if possible
 	f.seenBlockNums.Store(blockHeader.Root.String(), uint64(blockHeader.Header.Message.Slot))
 
 	parentSlot := uint64(0)
