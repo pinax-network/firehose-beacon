@@ -32,6 +32,8 @@ message Block {
     CapellaBody capella = 23;
     DenebBody deneb = 24;
   }
+
+  string signature = 30;
 }
 
 message Phase0Body {

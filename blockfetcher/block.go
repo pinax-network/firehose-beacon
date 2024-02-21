@@ -50,20 +50,25 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	case spec.DataVersionPhase0:
 		beaconBlock.Spec = pbbeacon.Spec_PHASE0
 		beaconBlock.Body = &pbbeacon.Block_Phase0{Phase0: toPhase0Body(signedBlock.Phase0)}
+		beaconBlock.Signature = signedBlock.Phase0.Signature.String()
 	case spec.DataVersionAltair:
 		beaconBlock.Spec = pbbeacon.Spec_ALTAIR
 		beaconBlock.Body = &pbbeacon.Block_Altair{Altair: toAltairBody(signedBlock.Altair)}
+		beaconBlock.Signature = signedBlock.Altair.Signature.String()
 	case spec.DataVersionBellatrix:
 		beaconBlock.Spec = pbbeacon.Spec_BELLATRIX
 		beaconBlock.Body = &pbbeacon.Block_Bellatrix{Bellatrix: toBellatrixBody(signedBlock.Bellatrix)}
+		beaconBlock.Signature = signedBlock.Bellatrix.Signature.String()
 		timestamp = beaconBlock.GetBellatrix().ExecutionPayload.Timestamp
 	case spec.DataVersionCapella:
 		beaconBlock.Spec = pbbeacon.Spec_CAPELLA
 		beaconBlock.Body = &pbbeacon.Block_Capella{Capella: toCapellaBody(signedBlock.Capella)}
+		beaconBlock.Signature = signedBlock.Capella.Signature.String()
 		timestamp = beaconBlock.GetCapella().ExecutionPayload.Timestamp
 	case spec.DataVersionDeneb:
 		beaconBlock.Spec = pbbeacon.Spec_DENEB
 		beaconBlock.Body = &pbbeacon.Block_Deneb{Deneb: toDenebBody(signedBlock.Deneb, blobSidecars)}
+		beaconBlock.Signature = signedBlock.Deneb.Signature.String()
 		timestamp = beaconBlock.GetDeneb().ExecutionPayload.Timestamp
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
