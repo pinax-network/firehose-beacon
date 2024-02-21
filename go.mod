@@ -1,4 +1,4 @@
-module firehose-beacon
+module github.com/pinax-network/firehose-beacon
 
 go 1.22
 

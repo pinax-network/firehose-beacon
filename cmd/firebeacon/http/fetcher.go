@@ -1,9 +1,9 @@
 package http
 
 import (
-	"firehose-beacon/blockfetcher"
 	"fmt"
 	"github.com/attestantio/go-eth2-client/http"
+	"github.com/pinax-network/firehose-beacon/blockfetcher"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/streamingfast/cli/sflags"

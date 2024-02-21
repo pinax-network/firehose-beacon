@@ -1,7 +1,6 @@
 package blockfetcher
 
 import (
-	pbbeacon "firehose-beacon/pb/sf/beacon/type/v1"
 	"fmt"
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
@@ -10,6 +9,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
+	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"

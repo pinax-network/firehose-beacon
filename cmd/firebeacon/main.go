@@ -1,8 +1,8 @@
 package main
 
 import (
-	"firehose-beacon/cmd/firebeacon/http"
 	"fmt"
+	"github.com/pinax-network/firehose-beacon/cmd/firebeacon/http"
 	"github.com/spf13/cobra"
 	"github.com/streamingfast/firehose-core/cmd/tools"
 	"github.com/streamingfast/logging"
