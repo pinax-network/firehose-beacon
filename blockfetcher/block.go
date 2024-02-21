@@ -47,7 +47,7 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, root string, header *v1.Bea
 		beaconBlock.Spec = pbbeacon.Spec_DENEB
 		beaconBlock.Body = &pbbeacon.Block_Deneb{Deneb: toDenebBody(signedBlock.Deneb, blobSidecars)}
 	default:
-		return nil, fmt.Errorf("unknown spec: %q", signedBlock.String())
+		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
 
 	anyBlock, err := anypb.New(beaconBlock)
@@ -77,6 +77,9 @@ func toDenebBody(signedBlock *deneb.SignedBeaconBlock, blobSidecars []*deneb.Blo
 		Graffiti:          fmt.Sprintf("%#x", blockBody.Graffiti),
 		ProposerSlashings: proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings: attesterSlashingsToProto(blockBody.AttesterSlashings),
+		Attestations:      attestationsToProto(blockBody.Attestations),
+		Deposits:          depositsToProto(blockBody.Deposits),
+		VoluntaryExits:    voluntaryExitsToProto(blockBody.VoluntaryExits),
 	}
 }
 
@@ -191,6 +194,55 @@ func checkpointToProto(checkpoint *phase0.Checkpoint) *pbbeacon.Checkpoint {
 	return &pbbeacon.Checkpoint{
 		Epoch: uint64(checkpoint.Epoch),
 		Root:  checkpoint.Root.String(),
+	}
+}
+
+func attestationsToProto(attestations []*phase0.Attestation) []*pbbeacon.Attestation {
+	res := make([]*pbbeacon.Attestation, 0, len(attestations))
+	for _, a := range attestations {
+		res = append(res, &pbbeacon.Attestation{
+			AggregationBits: fmt.Sprintf("%#x", a.AggregationBits.Bytes()),
+			Data:            attestationDataToProto(a.Data),
+			Signature:       a.Signature.String(),
+		})
+	}
+	return res
+}
+
+func depositsToProto(deposits []*phase0.Deposit) []*pbbeacon.Deposit {
+	res := make([]*pbbeacon.Deposit, 0, len(deposits))
+	for _, d := range deposits {
+		res = append(res, &pbbeacon.Deposit{
+			Data: depositDataToProto(d.Data),
+		})
+	}
+	return res
+}
+
+func depositDataToProto(depositData *phase0.DepositData) *pbbeacon.DepositData {
+	return &pbbeacon.DepositData{
+		PublicKey:             depositData.PublicKey.String(),
+		WithdrawalCredentials: depositData.WithdrawalCredentials,
+		Gwei:                  uint64(depositData.Amount),
+		Signature:             depositData.Signature.String(),
+	}
+}
+
+func voluntaryExitsToProto(voluntaryExits []*phase0.SignedVoluntaryExit) []*pbbeacon.SignedVoluntaryExit {
+	res := make([]*pbbeacon.SignedVoluntaryExit, 0, len(voluntaryExits))
+	for _, v := range voluntaryExits {
+		res = append(res, &pbbeacon.SignedVoluntaryExit{
+			Message:   voluntaryExitToProto(v.Message),
+			Signature: v.Signature.String(),
+		})
+	}
+	return res
+}
+
+func voluntaryExitToProto(voluntaryExit *phase0.VoluntaryExit) *pbbeacon.VoluntaryExit {
+	return &pbbeacon.VoluntaryExit{
+		Epoch:          uint64(voluntaryExit.Epoch),
+		ValidatorIndex: uint64(voluntaryExit.ValidatorIndex),
 	}
 }
 

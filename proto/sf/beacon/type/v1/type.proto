@@ -24,7 +24,10 @@ message Block {
   uint64 proposer_index = 7;
 
   oneof Body {
-    Phase0Body phase0 = 20;
+    // Phase0Body phase0 = 20;
+    // AltrairBody altrair = 21;
+    // BellatrixBody bellatrix = 22;
+    // CapellaBody capelly = 23;
     DenebBody deneb = 25;
   }
 }
@@ -42,6 +45,9 @@ message DenebBody {
   string graffiti = 3;
   repeated ProposerSlashing proposer_slashings = 4;
   repeated AttesterSlashing attester_slashings = 5;
+  repeated Attestation attestations = 6;
+  repeated Deposit deposits = 7;
+  repeated SignedVoluntaryExit voluntary_exits = 8;
 
   repeated Blob blobs = 15;
 }
@@ -60,6 +66,34 @@ message ProposerSlashing {
 message AttesterSlashing {
   IndexedAttestation attestation_1 = 1;
   IndexedAttestation attestation_2 = 2;
+}
+
+message Attestation {
+  string aggregation_bits = 1;
+  AttestationData data = 2;
+  string signature = 3;
+}
+
+message Deposit {
+  // todo Proof [][]byte
+  DepositData data = 2;
+}
+
+message SignedVoluntaryExit {
+  VoluntaryExit message = 1;
+  string signature = 2;
+}
+
+message VoluntaryExit {
+  uint64 epoch = 1;
+  uint64 validator_index = 2;
+}
+
+message DepositData {
+  string public_key = 1;
+  bytes withdrawal_credentials = 2;
+  uint64 gwei = 3;
+  string signature = 4;
 }
 
 message IndexedAttestation {
