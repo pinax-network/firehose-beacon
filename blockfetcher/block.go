@@ -45,7 +45,6 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		ProposerIndex: uint64(proposerIndex),
 	}
 
-	var timestamp *timestamppb.Timestamp
 	switch signedBlock.Version {
 	case spec.DataVersionPhase0:
 		beaconBlock.Spec = pbbeacon.Spec_PHASE0
@@ -59,17 +58,17 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		beaconBlock.Spec = pbbeacon.Spec_BELLATRIX
 		beaconBlock.Body = &pbbeacon.Block_Bellatrix{Bellatrix: toBellatrixBody(signedBlock.Bellatrix)}
 		beaconBlock.Signature = signedBlock.Bellatrix.Signature.String()
-		timestamp = beaconBlock.GetBellatrix().ExecutionPayload.Timestamp
+		beaconBlock.Timestamp = beaconBlock.GetBellatrix().ExecutionPayload.Timestamp
 	case spec.DataVersionCapella:
 		beaconBlock.Spec = pbbeacon.Spec_CAPELLA
 		beaconBlock.Body = &pbbeacon.Block_Capella{Capella: toCapellaBody(signedBlock.Capella)}
 		beaconBlock.Signature = signedBlock.Capella.Signature.String()
-		timestamp = beaconBlock.GetCapella().ExecutionPayload.Timestamp
+		beaconBlock.Timestamp = beaconBlock.GetCapella().ExecutionPayload.Timestamp
 	case spec.DataVersionDeneb:
 		beaconBlock.Spec = pbbeacon.Spec_DENEB
 		beaconBlock.Body = &pbbeacon.Block_Deneb{Deneb: toDenebBody(signedBlock.Deneb, blobSidecars)}
 		beaconBlock.Signature = signedBlock.Deneb.Signature.String()
-		timestamp = beaconBlock.GetDeneb().ExecutionPayload.Timestamp
+		beaconBlock.Timestamp = beaconBlock.GetDeneb().ExecutionPayload.Timestamp
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
@@ -84,7 +83,7 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		Id:       header.Root.String(),
 		ParentId: parentRoot.String(),
 		// todo figure out where to get the timestamp from non deneb specs
-		Timestamp: timestamp,
+		Timestamp: beaconBlock.Timestamp,
 		LibNum:    libNum,
 		ParentNum: parentSlot,
 		Payload:   anyBlock,
