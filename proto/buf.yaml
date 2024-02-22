@@ -1,0 +1,12 @@
+version: v1
+name: buf.build/pinax/firehose-beacon
+
+build:
+  excludes:
+    - google
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT

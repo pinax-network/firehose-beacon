@@ -1,2 +1,2 @@
-generate.sh - Thu Feb 22 13:11:24 CET 2024 - work
-pinax-network/firehose-beacon/proto revision: d10ab40
+generate.sh - Thu Feb 22 17:07:11 CET 2024 - work
+pinax-network/firehose-beacon/proto revision: e09d7a4

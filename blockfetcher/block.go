@@ -40,9 +40,9 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		Version:       1,
 		Slot:          slot,
 		ParentSlot:    parentSlot,
-		Root:          header.Root.String(),
-		ParentRoot:    parentRoot.String(),
-		StateRoot:     stateRoot.String(),
+		Root:          header.Root[:],
+		ParentRoot:    parentRoot[:],
+		StateRoot:     stateRoot[:],
 		ProposerIndex: uint64(proposerIndex),
 	}
 
@@ -50,25 +50,25 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	case spec.DataVersionPhase0:
 		beaconBlock.Spec = pbbeacon.Spec_PHASE0
 		beaconBlock.Body = &pbbeacon.Block_Phase0{Phase0: toPhase0Body(signedBlock.Phase0)}
-		beaconBlock.Signature = signedBlock.Phase0.Signature.String()
+		beaconBlock.Signature = signedBlock.Phase0.Signature[:]
 	case spec.DataVersionAltair:
 		beaconBlock.Spec = pbbeacon.Spec_ALTAIR
 		beaconBlock.Body = &pbbeacon.Block_Altair{Altair: toAltairBody(signedBlock.Altair)}
-		beaconBlock.Signature = signedBlock.Altair.Signature.String()
+		beaconBlock.Signature = signedBlock.Altair.Signature[:]
 	case spec.DataVersionBellatrix:
 		beaconBlock.Spec = pbbeacon.Spec_BELLATRIX
 		beaconBlock.Body = &pbbeacon.Block_Bellatrix{Bellatrix: toBellatrixBody(signedBlock.Bellatrix)}
-		beaconBlock.Signature = signedBlock.Bellatrix.Signature.String()
+		beaconBlock.Signature = signedBlock.Bellatrix.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetBellatrix().ExecutionPayload.Timestamp
 	case spec.DataVersionCapella:
 		beaconBlock.Spec = pbbeacon.Spec_CAPELLA
 		beaconBlock.Body = &pbbeacon.Block_Capella{Capella: toCapellaBody(signedBlock.Capella)}
-		beaconBlock.Signature = signedBlock.Capella.Signature.String()
+		beaconBlock.Signature = signedBlock.Capella.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetCapella().ExecutionPayload.Timestamp
 	case spec.DataVersionDeneb:
 		beaconBlock.Spec = pbbeacon.Spec_DENEB
 		beaconBlock.Body = &pbbeacon.Block_Deneb{Deneb: toDenebBody(signedBlock.Deneb, blobSidecars)}
-		beaconBlock.Signature = signedBlock.Deneb.Signature.String()
+		beaconBlock.Signature = signedBlock.Deneb.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetDeneb().ExecutionPayload.Timestamp
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
@@ -96,9 +96,9 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 func toPhase0Body(signedBlock *phase0.SignedBeaconBlock) *pbbeacon.Phase0Body {
 	blockBody := signedBlock.Message.Body
 	return &pbbeacon.Phase0Body{
-		RandoReveal:       blockBody.RANDAOReveal.String(),
+		RandoReveal:       blockBody.RANDAOReveal[:],
 		Eth1Data:          eth1DataToProto(blockBody.ETH1Data),
-		Graffiti:          fmt.Sprintf("%#x", blockBody.Graffiti),
+		Graffiti:          blockBody.Graffiti[:],
 		ProposerSlashings: proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings: attesterSlashingsToProto(blockBody.AttesterSlashings),
 		Attestations:      attestationsToProto(blockBody.Attestations),
@@ -110,9 +110,9 @@ func toPhase0Body(signedBlock *phase0.SignedBeaconBlock) *pbbeacon.Phase0Body {
 func toAltairBody(signedBlock *altair.SignedBeaconBlock) *pbbeacon.AltairBody {
 	blockBody := signedBlock.Message.Body
 	return &pbbeacon.AltairBody{
-		RandoReveal:       blockBody.RANDAOReveal.String(),
+		RandoReveal:       blockBody.RANDAOReveal[:],
 		Eth1Data:          eth1DataToProto(blockBody.ETH1Data),
-		Graffiti:          fmt.Sprintf("%#x", blockBody.Graffiti),
+		Graffiti:          blockBody.Graffiti[:],
 		ProposerSlashings: proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings: attesterSlashingsToProto(blockBody.AttesterSlashings),
 		Attestations:      attestationsToProto(blockBody.Attestations),
@@ -125,9 +125,9 @@ func toAltairBody(signedBlock *altair.SignedBeaconBlock) *pbbeacon.AltairBody {
 func toBellatrixBody(signedBlock *bellatrix.SignedBeaconBlock) *pbbeacon.BellatrixBody {
 	blockBody := signedBlock.Message.Body
 	return &pbbeacon.BellatrixBody{
-		RandoReveal:       blockBody.RANDAOReveal.String(),
+		RandoReveal:       blockBody.RANDAOReveal[:],
 		Eth1Data:          eth1DataToProto(blockBody.ETH1Data),
-		Graffiti:          fmt.Sprintf("%#x", blockBody.Graffiti),
+		Graffiti:          blockBody.Graffiti[:],
 		ProposerSlashings: proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings: attesterSlashingsToProto(blockBody.AttesterSlashings),
 		Attestations:      attestationsToProto(blockBody.Attestations),
@@ -141,9 +141,9 @@ func toBellatrixBody(signedBlock *bellatrix.SignedBeaconBlock) *pbbeacon.Bellatr
 func toCapellaBody(signedBlock *capella.SignedBeaconBlock) *pbbeacon.CapellaBody {
 	blockBody := signedBlock.Message.Body
 	return &pbbeacon.CapellaBody{
-		RandoReveal:       blockBody.RANDAOReveal.String(),
+		RandoReveal:       blockBody.RANDAOReveal[:],
 		Eth1Data:          eth1DataToProto(blockBody.ETH1Data),
-		Graffiti:          fmt.Sprintf("%#x", blockBody.Graffiti),
+		Graffiti:          blockBody.Graffiti[:],
 		ProposerSlashings: proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings: attesterSlashingsToProto(blockBody.AttesterSlashings),
 		Attestations:      attestationsToProto(blockBody.Attestations),
@@ -157,9 +157,9 @@ func toCapellaBody(signedBlock *capella.SignedBeaconBlock) *pbbeacon.CapellaBody
 func toDenebBody(signedBlock *deneb.SignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) *pbbeacon.DenebBody {
 	blockBody := signedBlock.Message.Body
 	return &pbbeacon.DenebBody{
-		RandoReveal:           blockBody.RANDAOReveal.String(),
+		RandoReveal:           blockBody.RANDAOReveal[:],
 		Eth1Data:              eth1DataToProto(blockBody.ETH1Data),
-		Graffiti:              fmt.Sprintf("%#x", blockBody.Graffiti),
+		Graffiti:              blockBody.Graffiti[:],
 		ProposerSlashings:     proposerSlashingsToProto(blockBody.ProposerSlashings),
 		AttesterSlashings:     attesterSlashingsToProto(blockBody.AttesterSlashings),
 		Attestations:          attestationsToProto(blockBody.Attestations),
@@ -176,9 +176,9 @@ func toDenebBody(signedBlock *deneb.SignedBeaconBlock, blobSidecars []*deneb.Blo
 
 func eth1DataToProto(eth1Data *phase0.ETH1Data) *pbbeacon.Eth1Data {
 	return &pbbeacon.Eth1Data{
-		DepositRoot:  eth1Data.DepositRoot.String(),
+		DepositRoot:  eth1Data.DepositRoot[:],
 		DepositCount: eth1Data.DepositCount,
-		BlockHash:    fmt.Sprintf("%#x", eth1Data.BlockHash),
+		BlockHash:    eth1Data.BlockHash,
 	}
 }
 
@@ -196,7 +196,7 @@ func proposerSlashingsToProto(proposerSlashings []*phase0.ProposerSlashing) []*p
 func signedBeaconBlockHeaderToProto(signedBeaconBlockHeader *phase0.SignedBeaconBlockHeader) *pbbeacon.SignedBeaconBlockHeader {
 	return &pbbeacon.SignedBeaconBlockHeader{
 		Message:   beaconBlockHeaderToProto(signedBeaconBlockHeader.Message),
-		Signature: signedBeaconBlockHeader.Signature.String(),
+		Signature: signedBeaconBlockHeader.Signature[:],
 	}
 }
 
@@ -204,9 +204,9 @@ func beaconBlockHeaderToProto(beaconBlockHeader *phase0.BeaconBlockHeader) *pbbe
 	return &pbbeacon.BeaconBlockHeader{
 		Slot:          uint64(beaconBlockHeader.Slot),
 		ProposerIndex: uint64(beaconBlockHeader.ProposerIndex),
-		ParentRoot:    beaconBlockHeader.ParentRoot.String(),
-		StateRoot:     beaconBlockHeader.StateRoot.String(),
-		BodyRoot:      beaconBlockHeader.BodyRoot.String(),
+		ParentRoot:    beaconBlockHeader.ParentRoot[:],
+		StateRoot:     beaconBlockHeader.StateRoot[:],
+		BodyRoot:      beaconBlockHeader.BodyRoot[:],
 	}
 }
 
@@ -225,7 +225,7 @@ func indexedAttestationToProto(indexedAttestation *phase0.IndexedAttestation) *p
 	return &pbbeacon.IndexedAttestation{
 		AttestingIndices: indexedAttestation.AttestingIndices,
 		Data:             attestationDataToProto(indexedAttestation.Data),
-		Signature:        indexedAttestation.Signature.String(),
+		Signature:        indexedAttestation.Signature[:],
 	}
 }
 
@@ -233,7 +233,7 @@ func attestationDataToProto(attestationData *phase0.AttestationData) *pbbeacon.A
 	return &pbbeacon.AttestationData{
 		Slot:            uint64(attestationData.Slot),
 		CommitteeIndex:  uint64(attestationData.Index),
-		BeaconBlockRoot: attestationData.BeaconBlockRoot.String(),
+		BeaconBlockRoot: attestationData.BeaconBlockRoot[:],
 		Source:          checkpointToProto(attestationData.Source),
 		Target:          checkpointToProto(attestationData.Target),
 	}
@@ -242,7 +242,7 @@ func attestationDataToProto(attestationData *phase0.AttestationData) *pbbeacon.A
 func checkpointToProto(checkpoint *phase0.Checkpoint) *pbbeacon.Checkpoint {
 	return &pbbeacon.Checkpoint{
 		Epoch: uint64(checkpoint.Epoch),
-		Root:  checkpoint.Root.String(),
+		Root:  checkpoint.Root[:],
 	}
 }
 
@@ -250,9 +250,9 @@ func attestationsToProto(attestations []*phase0.Attestation) []*pbbeacon.Attesta
 	res := make([]*pbbeacon.Attestation, 0, len(attestations))
 	for _, a := range attestations {
 		res = append(res, &pbbeacon.Attestation{
-			AggregationBits: fmt.Sprintf("%#x", []byte(a.AggregationBits)),
+			AggregationBits: a.AggregationBits,
 			Data:            attestationDataToProto(a.Data),
-			Signature:       a.Signature.String(),
+			Signature:       a.Signature[:],
 		})
 	}
 	return res
@@ -262,27 +262,19 @@ func depositsToProto(deposits []*phase0.Deposit) []*pbbeacon.Deposit {
 	res := make([]*pbbeacon.Deposit, 0, len(deposits))
 	for _, d := range deposits {
 		res = append(res, &pbbeacon.Deposit{
-			Proof: depositProofToProto(d.Proof),
+			Proof: d.Proof,
 			Data:  depositDataToProto(d.Data),
 		})
 	}
 	return res
 }
 
-func depositProofToProto(proof [][]byte) []string {
-	res := make([]string, 0, len(proof))
-	for _, p := range proof {
-		res = append(res, fmt.Sprintf("%#x", p))
-	}
-	return res
-}
-
 func depositDataToProto(depositData *phase0.DepositData) *pbbeacon.DepositData {
 	return &pbbeacon.DepositData{
-		PublicKey:             depositData.PublicKey.String(),
+		PublicKey:             depositData.PublicKey[:],
 		WithdrawalCredentials: depositData.WithdrawalCredentials,
 		Gwei:                  uint64(depositData.Amount),
-		Signature:             depositData.Signature.String(),
+		Signature:             depositData.Signature[:],
 	}
 }
 
@@ -291,7 +283,7 @@ func voluntaryExitsToProto(voluntaryExits []*phase0.SignedVoluntaryExit) []*pbbe
 	for _, v := range voluntaryExits {
 		res = append(res, &pbbeacon.SignedVoluntaryExit{
 			Message:   voluntaryExitToProto(v.Message),
-			Signature: v.Signature.String(),
+			Signature: v.Signature[:],
 		})
 	}
 	return res
@@ -306,45 +298,45 @@ func voluntaryExitToProto(voluntaryExit *phase0.VoluntaryExit) *pbbeacon.Volunta
 
 func syncAggregateToProto(syncAggregate *altair.SyncAggregate) *pbbeacon.SyncAggregate {
 	return &pbbeacon.SyncAggregate{
-		SyncCommiteeBits:      fmt.Sprintf("%#x", syncAggregate.SyncCommitteeBits.Bytes()),
-		SyncComitteeSignature: syncAggregate.SyncCommitteeSignature.String(),
+		SyncCommiteeBits:      syncAggregate.SyncCommitteeBits,
+		SyncComitteeSignature: syncAggregate.SyncCommitteeSignature[:],
 	}
 }
 
 func bellatrixExecutionPayloadToProto(executionPayload *bellatrix.ExecutionPayload) *pbbeacon.BellatrixExecutionPayload {
 	return &pbbeacon.BellatrixExecutionPayload{
-		ParentHash:    executionPayload.ParentHash.String(),
-		FeeRecipient:  executionPayload.FeeRecipient.String(),
-		StateRoot:     fmt.Sprintf("%#x", executionPayload.StateRoot),
-		ReceiptsRoot:  fmt.Sprintf("%#x", executionPayload.ReceiptsRoot),
-		LogsBloom:     fmt.Sprintf("%#x", executionPayload.LogsBloom),
-		PrevRandao:    fmt.Sprintf("%#x", executionPayload.PrevRandao),
+		ParentHash:    executionPayload.ParentHash[:],
+		FeeRecipient:  executionPayload.FeeRecipient[:],
+		StateRoot:     executionPayload.StateRoot[:],
+		ReceiptsRoot:  executionPayload.ReceiptsRoot[:],
+		LogsBloom:     executionPayload.LogsBloom[:],
+		PrevRandao:    executionPayload.PrevRandao[:],
 		BlockNumber:   executionPayload.BlockNumber,
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData,
-		BaseFeePerGas: fmt.Sprintf("%#x", executionPayload.BaseFeePerGas),
-		BlockHash:     executionPayload.BlockHash.String(),
+		ExtraData:     executionPayload.ExtraData[:],
+		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
+		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
 	}
 }
 
 func capellaExecutionPayloadToProto(executionPayload *capella.ExecutionPayload) *pbbeacon.CapellaExecutionPayload {
 	return &pbbeacon.CapellaExecutionPayload{
-		ParentHash:    executionPayload.ParentHash.String(),
-		FeeRecipient:  executionPayload.FeeRecipient.String(),
-		StateRoot:     fmt.Sprintf("%#x", executionPayload.StateRoot),
-		ReceiptsRoot:  fmt.Sprintf("%#x", executionPayload.ReceiptsRoot),
-		LogsBloom:     fmt.Sprintf("%#x", executionPayload.LogsBloom),
-		PrevRandao:    fmt.Sprintf("%#x", executionPayload.PrevRandao),
+		ParentHash:    executionPayload.ParentHash[:],
+		FeeRecipient:  executionPayload.FeeRecipient[:],
+		StateRoot:     executionPayload.StateRoot[:],
+		ReceiptsRoot:  executionPayload.ReceiptsRoot[:],
+		LogsBloom:     executionPayload.LogsBloom[:],
+		PrevRandao:    executionPayload.PrevRandao[:],
 		BlockNumber:   executionPayload.BlockNumber,
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData,
-		BaseFeePerGas: fmt.Sprintf("%#x", executionPayload.BaseFeePerGas),
-		BlockHash:     executionPayload.BlockHash.String(),
+		ExtraData:     executionPayload.ExtraData[:],
+		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
+		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
 		Withdrawals:   withdrawalsToProto(executionPayload.Withdrawals),
 	}
@@ -352,19 +344,19 @@ func capellaExecutionPayloadToProto(executionPayload *capella.ExecutionPayload) 
 
 func denebExecutionPayloadToProto(executionPayload *deneb.ExecutionPayload) *pbbeacon.DenebExecutionPayload {
 	return &pbbeacon.DenebExecutionPayload{
-		ParentHash:    executionPayload.ParentHash.String(),
-		FeeRecipient:  executionPayload.FeeRecipient.String(),
-		StateRoot:     executionPayload.StateRoot.String(),
-		ReceiptsRoot:  executionPayload.ReceiptsRoot.String(),
-		LogsBloom:     fmt.Sprintf("%#x", executionPayload.LogsBloom),
-		PrevRandao:    fmt.Sprintf("%#x", executionPayload.PrevRandao),
+		ParentHash:    executionPayload.ParentHash[:],
+		FeeRecipient:  executionPayload.FeeRecipient[:],
+		StateRoot:     executionPayload.StateRoot[:],
+		ReceiptsRoot:  executionPayload.ReceiptsRoot[:],
+		LogsBloom:     executionPayload.LogsBloom[:],
+		PrevRandao:    executionPayload.PrevRandao[:],
 		BlockNumber:   executionPayload.BlockNumber,
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData,
-		BaseFeePerGas: executionPayload.BaseFeePerGas.String(),
-		BlockHash:     executionPayload.BlockHash.String(),
+		ExtraData:     executionPayload.ExtraData[:],
+		BaseFeePerGas: executionPayload.BaseFeePerGas.Bytes(),
+		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
 		Withdrawals:   withdrawalsToProto(executionPayload.Withdrawals),
 		BlobGasUsed:   executionPayload.BlobGasUsed,
@@ -372,10 +364,10 @@ func denebExecutionPayloadToProto(executionPayload *deneb.ExecutionPayload) *pbb
 	}
 }
 
-func transactionsToProto(transactions []bellatrix.Transaction) []string {
-	res := make([]string, 0, len(transactions))
+func transactionsToProto(transactions []bellatrix.Transaction) [][]byte {
+	res := make([][]byte, 0, len(transactions))
 	for _, t := range transactions {
-		res = append(res, fmt.Sprintf("%#x", []byte(t)))
+		res = append(res, t)
 	}
 	return res
 }
@@ -386,7 +378,7 @@ func withdrawalsToProto(withdrawals []*capella.Withdrawal) []*pbbeacon.Withdrawa
 		res = append(res, &pbbeacon.Withdrawal{
 			WithdrawalIndex: uint64(w.Index),
 			ValidatorIndex:  uint64(w.ValidatorIndex),
-			Address:         w.Address.String(),
+			Address:         w.Address[:],
 			Gwei:            uint64(w.Amount),
 		})
 	}
@@ -398,7 +390,7 @@ func signedBlsToExecutionChangeToProto(signedBlsToExecutionChanges []*capella.Si
 	for _, b := range signedBlsToExecutionChanges {
 		res = append(res, &pbbeacon.SignedBLSToExecutionChange{
 			Message:   blsToExecutionChangeToProto(b.Message),
-			Signature: b.Signature.String(),
+			Signature: b.Signature[:],
 		})
 	}
 	return res
@@ -407,15 +399,15 @@ func signedBlsToExecutionChangeToProto(signedBlsToExecutionChanges []*capella.Si
 func blsToExecutionChangeToProto(blsToExecutionChange *capella.BLSToExecutionChange) *pbbeacon.BLSToExecutionChange {
 	return &pbbeacon.BLSToExecutionChange{
 		ValidatorIndex:     uint64(blsToExecutionChange.ValidatorIndex),
-		FromBlsPubKey:      blsToExecutionChange.FromBLSPubkey.String(),
-		ToExecutionAddress: blsToExecutionChange.ToExecutionAddress.String(),
+		FromBlsPubKey:      blsToExecutionChange.FromBLSPubkey[:],
+		ToExecutionAddress: blsToExecutionChange.ToExecutionAddress[:],
 	}
 }
 
-func kzgCommitmentsToProto(kzgCommitments []deneb.KZGCommitment) []string {
-	res := make([]string, 0, len(kzgCommitments))
+func kzgCommitmentsToProto(kzgCommitments []deneb.KZGCommitment) [][]byte {
+	res := make([][]byte, 0, len(kzgCommitments))
 	for _, k := range kzgCommitments {
-		res = append(res, k.String())
+		res = append(res, k[:])
 	}
 	return res
 }
@@ -426,18 +418,18 @@ func blobsToProto(blobSidecars []*deneb.BlobSidecar) []*pbbeacon.Blob {
 		res = append(res, &pbbeacon.Blob{
 			Index:                       uint64(b.Index),
 			Blob:                        b.Blob[:],
-			KzgCommitment:               b.KZGCommitment.String(),
-			KzgProof:                    b.KZGProof.String(),
+			KzgCommitment:               b.KZGCommitment[:],
+			KzgProof:                    b.KZGProof[:],
 			KzgCommitmentInclusionProof: kgzCommitmentInclusionProofToProto(b.KZGCommitmentInclusionProof),
 		})
 	}
 	return res
 }
 
-func kgzCommitmentInclusionProofToProto(kzgCommitmentInclusionProof deneb.KZGCommitmentInclusionProof) []string {
-	res := make([]string, 0, len(kzgCommitmentInclusionProof))
+func kgzCommitmentInclusionProofToProto(kzgCommitmentInclusionProof deneb.KZGCommitmentInclusionProof) [][]byte {
+	res := make([][]byte, 0, len(kzgCommitmentInclusionProof))
 	for _, k := range kzgCommitmentInclusionProof {
-		res = append(res, fmt.Sprintf("%#x", k))
+		res = append(res, k[:])
 	}
 	return res
 }
