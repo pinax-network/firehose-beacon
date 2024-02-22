@@ -249,7 +249,7 @@ func attestationsToProto(attestations []*phase0.Attestation) []*pbbeacon.Attesta
 	res := make([]*pbbeacon.Attestation, 0, len(attestations))
 	for _, a := range attestations {
 		res = append(res, &pbbeacon.Attestation{
-			AggregationBits: fmt.Sprintf("%#x", a.AggregationBits.Bytes()),
+			AggregationBits: fmt.Sprintf("%#x", []byte(a.AggregationBits)),
 			Data:            attestationDataToProto(a.Data),
 			Signature:       a.Signature.String(),
 		})
