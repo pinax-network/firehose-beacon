@@ -37,6 +37,7 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	}
 
 	beaconBlock := &pbbeacon.Block{
+		Version:       1,
 		Slot:          slot,
 		ParentSlot:    parentSlot,
 		Root:          header.Root.String(),
