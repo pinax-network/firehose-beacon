@@ -69,6 +69,11 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 		sleepDuration = f.latestBlockRetryInterval
 	}
 
+	sinceLastFetch := time.Since(f.lastFetchAt)
+	if sinceLastFetch < f.fetchInterval {
+		time.Sleep(f.fetchInterval - sinceLastFetch)
+	}
+
 	if f.latestFinalizedSlot < requestedSlot {
 
 		finalizedBlockHeader, err := f.fetchBlockHeader(ctx, FinalizedBlock)
@@ -127,6 +132,8 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
 	}
+
+	f.lastFetchAt = time.Now()
 
 	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, blockHeader, signedBlock, blobSidecars)
 	if err != nil {

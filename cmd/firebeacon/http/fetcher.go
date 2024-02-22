@@ -23,7 +23,7 @@ func NewFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {
 		RunE:  fetchRunE(logger, tracer),
 	}
 
-	cmd.Flags().String("state-dir", "/data/poller", "interval between fetch")
+	cmd.Flags().String("state-dir", "/data/poller", "directory to store the sync state")
 	cmd.Flags().Duration("interval-between-fetch", 0, "interval between fetch")
 	cmd.Flags().Duration("latest-block-retry-interval", time.Second, "interval between fetch")
 	cmd.Flags().Int("block-fetch-batch-size", 10, "Number of blocks to fetch in a single batch")
