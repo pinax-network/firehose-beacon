@@ -8,7 +8,6 @@ import (
 	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
 	"os"
-	"time"
 )
 
 var logger, tracer = logging.PackageLogger("firebeacon", "github.com/pinax-network/firehose-beacon")
@@ -38,7 +37,6 @@ func newFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {
 		Short: "fetch blocks from different sources",
 		Args:  cobra.ExactArgs(2),
 	}
-	time.Now().UnixMilli()
 	cmd.AddCommand(http.NewFetchCmd(logger, tracer))
 	return cmd
 }

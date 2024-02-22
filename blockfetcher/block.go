@@ -433,9 +433,3 @@ func kgzCommitmentInclusionProofToProto(kzgCommitmentInclusionProof deneb.KZGCom
 	}
 	return res
 }
-
-func checkErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
