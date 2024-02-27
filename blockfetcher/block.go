@@ -35,6 +35,10 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	if err != nil {
 		return nil, err
 	}
+	bodyRoot, err := signedBlock.BodyRoot()
+	if err != nil {
+		return nil, err
+	}
 
 	beaconBlock := &pbbeacon.Block{
 		Version:       1,
@@ -44,6 +48,7 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		ParentRoot:    parentRoot[:],
 		StateRoot:     stateRoot[:],
 		ProposerIndex: uint64(proposerIndex),
+		BodyRoot:      bodyRoot[:],
 	}
 
 	switch signedBlock.Version {

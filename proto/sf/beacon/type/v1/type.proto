@@ -26,6 +26,7 @@ message Block {
   bytes parent_root = 6;
   bytes state_root = 7;
   uint64 proposer_index = 8;
+  bytes body_root = 9;
 
   oneof Body {
     Phase0Body phase0 = 20;
