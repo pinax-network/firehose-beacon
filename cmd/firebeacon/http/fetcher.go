@@ -65,8 +65,13 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 		}
 
 		latestBlockRetryInterval := sflags.MustGetDuration(cmd, "latest-block-retry-interval")
+		httpFetcher, err := blockfetcher.NewHttp(httpClient, fetchInterval, latestBlockRetryInterval, logger)
+		if err != nil {
+			return fmt.Errorf("failed to setup http blockfetcher: %w", err)
+		}
+
 		poller := blockpoller.New(
-			blockfetcher.NewHttp(httpClient, fetchInterval, latestBlockRetryInterval, logger),
+			httpFetcher,
 			blockpoller.NewFireBlockHandler("type.googleapis.com/sf.beacon.type.v1.Block"),
 			blockpoller.WithStoringState(stateDir),
 			blockpoller.WithLogger(logger),

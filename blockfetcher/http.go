@@ -30,9 +30,11 @@ type HttpFetcher struct {
 	lastFetchAt              time.Time
 	logger                   *zap.Logger
 	seenBlockNums            *sync.Map
+	genesisTimestamp         uint64
+	blockTime                uint64
 }
 
-func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, logger *zap.Logger) *HttpFetcher {
+func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, logger *zap.Logger) (*HttpFetcher, error) {
 	f := &HttpFetcher{
 		httpClient:               httpClient,
 		fetchInterval:            fetchInterval,
@@ -40,7 +42,59 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 		logger:                   logger,
 		seenBlockNums:            &sync.Map{},
 	}
-	return f
+	err := f.fetchBlockTimes()
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// fetchBlockTimes tries to receive the block times by getting the genesis time, the current head slot number and the
+// current head timestamp (from the execution payload). This allows us to set the slot time in the Firehose blocks for
+// earlier specs that do not yet include the execution payload. In those cases, we'll set the block time to
+// genesisTime + (slotNumber * blockTime).
+// Note this works only if the chain has reached at least the Bellatrix spec.
+func (f *HttpFetcher) fetchBlockTimes() error {
+	f.logger.Info("initializing block fetcher")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	genesis, err := f.fetchGenesis(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch genesis: %w", err)
+	}
+	f.genesisTimestamp = uint64(genesis.GenesisTime.Unix())
+
+	signedBlock, err := f.fetchSignedBlock(ctx, HeadBlock)
+	if err != nil {
+		return fmt.Errorf("failed to fetch signed block: %w", err)
+	}
+
+	headBlockTime := uint64(0)
+	switch signedBlock.Version {
+	case spec.DataVersionPhase0:
+	case spec.DataVersionAltair:
+	case spec.DataVersionBellatrix:
+		headBlockTime = signedBlock.Bellatrix.Message.Body.ExecutionPayload.Timestamp
+	case spec.DataVersionCapella:
+		headBlockTime = signedBlock.Capella.Message.Body.ExecutionPayload.Timestamp
+	case spec.DataVersionDeneb:
+		headBlockTime = signedBlock.Deneb.Message.Body.ExecutionPayload.Timestamp
+	default:
+		return fmt.Errorf("unimplemented spec: %q", signedBlock.String())
+	}
+
+	headSlot, err := signedBlock.Slot()
+	if err != nil {
+		return fmt.Errorf("failed to get slot from signed block: %w", err)
+	}
+
+	if headBlockTime > 0 {
+		f.blockTime = (headBlockTime - f.genesisTimestamp) / uint64(headSlot)
+	}
+
+	return nil
 }
 
 func (f *HttpFetcher) IsBlockAvailable(requestedSlot uint64) bool {
@@ -135,12 +189,12 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 
 	f.lastFetchAt = time.Now()
 
-	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, blockHeader, signedBlock, blobSidecars)
+	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, f.genesisTimestamp, f.blockTime, blockHeader, signedBlock, blobSidecars)
 	if err != nil {
 		return nil, false, fmt.Errorf("decoding block %d: %w", requestedSlot, err)
 	}
 
-	f.logger.Info("fetched block", zap.Uint64("slot", requestedSlot), zap.Uint64("parent_slot", parentSlot))
+	f.logger.Info("fetched block", zap.Uint64("slot", requestedSlot), zap.Uint64("parent_slot", parentSlot), zap.Any("timestamp", block.Timestamp))
 	return block, false, nil
 }
 
@@ -181,4 +235,17 @@ func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, block string) ([]*d
 	}
 
 	return nil, fmt.Errorf("failed to fetch blob sidecar, no BlobSidecarsProvider available")
+}
+
+func (f *HttpFetcher) fetchGenesis(ctx context.Context) (*v1.Genesis, error) {
+	if provider, isProvider := f.httpClient.(eth2client.GenesisProvider); isProvider {
+		genesisResponse, err := provider.Genesis(ctx, &api.GenesisOpts{})
+		if err != nil {
+			return nil, err
+		}
+
+		return genesisResponse.Data, nil
+	}
+
+	return nil, fmt.Errorf("failed to fetch genesis, no GenesisProvider available")
 }
