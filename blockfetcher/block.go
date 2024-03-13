@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
+func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
 
 	libNum := finalizedSlot
 	if finalizedSlot > slot {
@@ -56,10 +56,12 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 		beaconBlock.Spec = pbbeacon.Spec_PHASE0
 		beaconBlock.Body = &pbbeacon.Block_Phase0{Phase0: toPhase0Body(signedBlock.Phase0)}
 		beaconBlock.Signature = signedBlock.Phase0.Signature[:]
+		beaconBlock.Timestamp = calculateBlockTimestamp(genesisTimestamp, blockTime, beaconBlock.Slot)
 	case spec.DataVersionAltair:
 		beaconBlock.Spec = pbbeacon.Spec_ALTAIR
 		beaconBlock.Body = &pbbeacon.Block_Altair{Altair: toAltairBody(signedBlock.Altair)}
 		beaconBlock.Signature = signedBlock.Altair.Signature[:]
+		beaconBlock.Timestamp = calculateBlockTimestamp(genesisTimestamp, blockTime, beaconBlock.Slot)
 	case spec.DataVersionBellatrix:
 		beaconBlock.Spec = pbbeacon.Spec_BELLATRIX
 		beaconBlock.Body = &pbbeacon.Block_Bellatrix{Bellatrix: toBellatrixBody(signedBlock.Bellatrix)}
@@ -85,10 +87,9 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	}
 
 	res := &pbbstream.Block{
-		Number:   slot,
-		Id:       header.Root.String(),
-		ParentId: parentRoot.String(),
-		// todo figure out where to get the timestamp from non deneb specs
+		Number:    slot,
+		Id:        header.Root.String(),
+		ParentId:  parentRoot.String(),
 		Timestamp: beaconBlock.Timestamp,
 		LibNum:    libNum,
 		ParentNum: parentSlot,
@@ -96,6 +97,14 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, header *v1.BeaconBlockHeade
 	}
 
 	return res, nil
+}
+
+func calculateBlockTimestamp(genesisTimestamp, blockTime, slotNumber uint64) *timestamppb.Timestamp {
+	if genesisTimestamp == 0 || blockTime == 0 {
+		return nil
+	}
+	slotTimestamp := genesisTimestamp + (blockTime * slotNumber)
+	return timestamppb.New(time.Unix(int64(slotTimestamp), 0))
 }
 
 func toPhase0Body(signedBlock *phase0.SignedBeaconBlock) *pbbeacon.Phase0Body {
