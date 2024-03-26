@@ -103,11 +103,11 @@ func (f *HttpFetcher) IsBlockAvailable(requestedSlot uint64) bool {
 }
 
 func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
-	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot))
 
 	sleepDuration := time.Duration(0)
 	for f.latestConfirmedSlot < requestedSlot {
 		time.Sleep(sleepDuration)
+		f.logger.Debug("latest confirmed slot is lower than requested slot, fetching new head block", zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot), zap.Uint64("requested_slot", requestedSlot))
 
 		headBlockHeader, err := f.fetchBlockHeader(ctx, HeadBlock)
 		if err != nil {
@@ -129,6 +129,8 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 	}
 
 	if f.latestFinalizedSlot < requestedSlot {
+
+		f.logger.Debug("latest finalized slot is lower than requested slot, fetching new finalized head block", zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("requested_slot", requestedSlot))
 
 		finalizedBlockHeader, err := f.fetchBlockHeader(ctx, FinalizedBlock)
 		if err != nil {

@@ -57,7 +57,7 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 
 		httpClient, err := http.New(ctx,
 			http.WithAddress(httpEndpoint),
-			http.WithLogLevel(zerolog.Disabled),
+			http.WithLogLevel(zerolog.ErrorLevel),
 			http.WithTimeout(sflags.MustGetDuration(cmd, "http-timeout")),
 		)
 		if err != nil {
