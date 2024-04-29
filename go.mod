@@ -8,7 +8,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/streamingfast/bstream v0.0.2-0.20240409115502-d29a2fb46f37
 	github.com/streamingfast/cli v0.0.4-0.20240412191021-5f81842cb71d
-	github.com/streamingfast/firehose-core v1.3.6
+	github.com/streamingfast/firehose-core v1.3.7
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091
 	go.uber.org/zap v1.26.0
 	google.golang.org/protobuf v1.33.0
