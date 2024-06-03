@@ -8,9 +8,9 @@ require (
 	github.com/attestantio/go-eth2-client v0.19.10
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.7.0
-	github.com/streamingfast/bstream v0.0.2-0.20240430194002-d05d5d5d6c93
+	github.com/streamingfast/bstream v0.0.2-0.20240603153252-ec8d37625188
 	github.com/streamingfast/cli v0.0.4-0.20240412191021-5f81842cb71d
-	github.com/streamingfast/firehose-core v1.5.0
+	github.com/streamingfast/firehose-core v1.5.1
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091
 	go.uber.org/zap v1.26.0
 	google.golang.org/protobuf v1.33.0
@@ -157,7 +157,7 @@ require (
 	github.com/streamingfast/pbgo v0.0.6-0.20240430190514-722fe9d82e5d // indirect
 	github.com/streamingfast/sf-tracing v0.0.0-20240430173521-888827872b90 // indirect
 	github.com/streamingfast/shutter v1.5.0 // indirect
-	github.com/streamingfast/substreams v1.7.1-0.20240530150342-5d9468462fc8 // indirect
+	github.com/streamingfast/substreams v1.7.3 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf // indirect
@@ -181,10 +181,10 @@ require (
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.172.0 // indirect
