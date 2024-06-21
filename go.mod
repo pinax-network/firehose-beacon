@@ -8,9 +8,9 @@ require (
 	github.com/attestantio/go-eth2-client v0.19.10
 	github.com/rs/zerolog v1.29.1
 	github.com/spf13/cobra v1.7.0
-	github.com/streamingfast/bstream v0.0.2-0.20240603153252-ec8d37625188
+	github.com/streamingfast/bstream v0.0.2-0.20240619142813-9d23840859bf
 	github.com/streamingfast/cli v0.0.4-0.20240412191021-5f81842cb71d
-	github.com/streamingfast/firehose-core v1.5.2
+	github.com/streamingfast/firehose-core v1.5.3
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091
 	go.uber.org/zap v1.26.0
 	google.golang.org/protobuf v1.33.0
