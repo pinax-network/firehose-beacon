@@ -10,7 +10,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/streamingfast/bstream v0.0.2-0.20240619142813-9d23840859bf
 	github.com/streamingfast/cli v0.0.4-0.20240412191021-5f81842cb71d
-	github.com/streamingfast/firehose-core v1.5.6
+	github.com/streamingfast/firehose-core v1.5.7
 	github.com/streamingfast/logging v0.0.0-20230608130331-f22c91403091
 	go.uber.org/zap v1.26.0
 	google.golang.org/protobuf v1.33.0
@@ -39,7 +39,6 @@ require (
 	github.com/abourget/llerrgroup v0.2.0 // indirect
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/aws/aws-sdk-go v1.44.325 // indirect
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.12.0 // indirect
 	github.com/blendle/zapdriver v1.3.2-0.20200203083823-9200777f8a3d // indirect
@@ -52,9 +51,7 @@ require (
 	github.com/cncf/xds/go v0.0.0-20240318125728-8a4994d93e50 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
@@ -82,18 +79,12 @@ require (
 	github.com/holiman/uint256 v1.2.4 // indirect
 	github.com/huandu/go-clone v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/ipfs/boxo v0.8.0 // indirect
-	github.com/ipfs/go-cid v0.4.0 // indirect
-	github.com/ipfs/go-ipfs-api v0.6.0 // indirect
 	github.com/jhump/protoreflect v1.15.6 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josephburnett/jd v1.7.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
-	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
-	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
-	github.com/libp2p/go-libp2p v0.26.3 // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
@@ -104,20 +95,11 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mostynb/go-grpc-compression v1.1.17 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
-	github.com/multiformats/go-base32 v0.1.0 // indirect
-	github.com/multiformats/go-base36 v0.2.0 // indirect
-	github.com/multiformats/go-multiaddr v0.8.0 // indirect
-	github.com/multiformats/go-multibase v0.1.1 // indirect
-	github.com/multiformats/go-multicodec v0.8.1 // indirect
-	github.com/multiformats/go-multihash v0.2.1 // indirect
-	github.com/multiformats/go-multistream v0.4.1 // indirect
-	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/openzipkin/zipkin-go v0.4.2 // indirect
 	github.com/paulbellamy/ratecounter v0.2.0 // indirect
@@ -137,7 +119,6 @@ require (
 	github.com/sethvargo/go-retry v0.2.3 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -157,11 +138,10 @@ require (
 	github.com/streamingfast/pbgo v0.0.6-0.20240430190514-722fe9d82e5d // indirect
 	github.com/streamingfast/sf-tracing v0.0.0-20240430173521-888827872b90 // indirect
 	github.com/streamingfast/shutter v1.5.0 // indirect
-	github.com/streamingfast/substreams v1.9.2 // indirect
+	github.com/streamingfast/substreams v1.9.3 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/teris-io/shortid v0.0.0-20171029131806-771a37caa5cf // indirect
-	github.com/whyrusleeping/tar-utils v0.0.0-20201201191210-20a61371de5b // indirect
 	github.com/yourbasic/graph v0.0.0-20210606180040-8ecfec1c2869 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.9.0 // indirect
@@ -197,5 +177,4 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.1.7 // indirect
 )
