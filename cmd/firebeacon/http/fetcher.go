@@ -62,9 +62,14 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 			zap.Duration("latest_block_retry_interval", latestBlockRetryInterval),
 		)
 
+		logLevel := zerolog.Disabled
+		if tracer.Enabled() {
+			logLevel = zerolog.DebugLevel
+		}
+
 		httpClient, err := http.New(ctx,
 			http.WithAddress(httpEndpoint),
-			http.WithLogLevel(zerolog.Disabled),
+			http.WithLogLevel(logLevel),
 			http.WithTimeout(sflags.MustGetDuration(cmd, "http-timeout")),
 		)
 		if err != nil {
