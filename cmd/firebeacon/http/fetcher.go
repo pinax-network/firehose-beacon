@@ -62,7 +62,7 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 			zap.Duration("latest_block_retry_interval", latestBlockRetryInterval),
 		)
 
-		logLevel := zerolog.Disabled
+		logLevel := zerolog.WarnLevel
 		if tracer.Enabled() {
 			logLevel = zerolog.DebugLevel
 		}
