@@ -22,7 +22,6 @@ const (
 )
 
 type HttpFetcher struct {
-	httpClient               eth2client.Service
 	latestConfirmedSlot      uint64
 	latestFinalizedSlot      uint64
 	latestBlockRetryInterval time.Duration
@@ -36,13 +35,12 @@ type HttpFetcher struct {
 
 func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, logger *zap.Logger) (*HttpFetcher, error) {
 	f := &HttpFetcher{
-		httpClient:               httpClient,
 		fetchInterval:            fetchInterval,
 		latestBlockRetryInterval: latestBlockRetryInterval,
 		logger:                   logger,
 		seenBlockNums:            &sync.Map{},
 	}
-	err := f.fetchBlockTimes()
+	err := f.fetchBlockTimes(httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -55,18 +53,18 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 // earlier specs that do not yet include the execution payload. In those cases, we'll set the block time to
 // genesisTime + (slotNumber * blockTime).
 // Note this works only if the chain has reached at least the Bellatrix spec.
-func (f *HttpFetcher) fetchBlockTimes() error {
+func (f *HttpFetcher) fetchBlockTimes(httpClient eth2client.Service) error {
 	f.logger.Info("initializing block fetcher")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	genesis, err := f.fetchGenesis(ctx)
+	genesis, err := f.fetchGenesis(ctx, httpClient)
 	if err != nil {
 		return fmt.Errorf("failed to fetch genesis: %w", err)
 	}
 	f.genesisTimestamp = uint64(genesis.GenesisTime.Unix())
 
-	signedBlock, err := f.fetchSignedBlock(ctx, HeadBlock)
+	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, HeadBlock)
 	if err != nil {
 		return fmt.Errorf("failed to fetch signed block: %w", err)
 	}
@@ -102,14 +100,14 @@ func (f *HttpFetcher) IsBlockAvailable(requestedSlot uint64) bool {
 	return requestedSlot <= f.latestConfirmedSlot
 }
 
-func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
+func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
 	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot))
 
 	sleepDuration := time.Duration(0)
 	for f.latestConfirmedSlot < requestedSlot {
 		time.Sleep(sleepDuration)
 
-		headBlockHeader, err := f.fetchBlockHeader(ctx, HeadBlock)
+		headBlockHeader, err := f.fetchBlockHeader(ctx, httpClient, HeadBlock)
 		if err != nil {
 			return nil, false, fmt.Errorf("fetching head block num: %w", err)
 		}
@@ -130,7 +128,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 
 	if f.latestFinalizedSlot < requestedSlot {
 
-		finalizedBlockHeader, err := f.fetchBlockHeader(ctx, FinalizedBlock)
+		finalizedBlockHeader, err := f.fetchBlockHeader(ctx, httpClient, FinalizedBlock)
 		if err != nil {
 			return nil, false, fmt.Errorf("fetching finalized block num: %w", err)
 		}
@@ -141,7 +139,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 
 	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot), zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot))
 
-	signedBlock, err := f.fetchSignedBlock(ctx, strconv.FormatUint(requestedSlot, 10))
+	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
 		var apiErr *api.Error
 		if errors.As(err, &apiErr) {
@@ -158,7 +156,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 	}
 
 	// unfortunately, the signed block is missing the block root, so we need to request it separately here
-	blockHeader, err := f.fetchBlockHeader(ctx, strconv.FormatUint(requestedSlot, 10))
+	blockHeader, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching block header: %w", err)
 	}
@@ -174,7 +172,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 			f.logger.Debug("found parent slot in our buffer", zap.Uint64("slot", requestedSlot), zap.String("parent_root", blockHeader.Header.Message.ParentRoot.String()), zap.Uint64("parent_slot", parentSlot))
 		} else {
 			f.logger.Debug("missing parent slot in our buffer, requesting from Lighthouse node", zap.Uint64("slot", requestedSlot), zap.String("parent_root", blockHeader.Header.Message.ParentRoot.String()))
-			parentBlockHeader, err := f.fetchBlockHeader(ctx, blockHeader.Header.Message.ParentRoot.String())
+			parentBlockHeader, err := f.fetchBlockHeader(ctx, httpClient, blockHeader.Header.Message.ParentRoot.String())
 			if err != nil {
 				return nil, false, fmt.Errorf("fetching parent block header: %w", err)
 			}
@@ -182,7 +180,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 		}
 	}
 
-	blobSidecars, err := f.fetchBlobSidecars(ctx, strconv.FormatUint(requestedSlot, 10))
+	blobSidecars, err := f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
 		return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
 	}
@@ -198,8 +196,8 @@ func (f *HttpFetcher) Fetch(ctx context.Context, requestedSlot uint64) (out *pbb
 	return block, false, nil
 }
 
-func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, block string) (*v1.BeaconBlockHeader, error) {
-	if provider, isProvider := f.httpClient.(eth2client.BeaconBlockHeadersProvider); isProvider {
+func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, httpClient eth2client.Service, block string) (*v1.BeaconBlockHeader, error) {
+	if provider, isProvider := httpClient.(eth2client.BeaconBlockHeadersProvider); isProvider {
 		blockHeaderResponse, err := provider.BeaconBlockHeader(ctx, &api.BeaconBlockHeaderOpts{Block: block})
 		if err != nil {
 			return nil, err
@@ -211,8 +209,8 @@ func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, block string) (*v1.B
 	return nil, fmt.Errorf("failed to fetch block header, no BeaconBlockHeadersProvider available")
 }
 
-func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, block string) (*spec.VersionedSignedBeaconBlock, error) {
-	if provider, isProvider := f.httpClient.(eth2client.SignedBeaconBlockProvider); isProvider {
+func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, httpClient eth2client.Service, block string) (*spec.VersionedSignedBeaconBlock, error) {
+	if provider, isProvider := httpClient.(eth2client.SignedBeaconBlockProvider); isProvider {
 		signedBlockResponse, err := provider.SignedBeaconBlock(ctx, &api.SignedBeaconBlockOpts{Block: block})
 		if err != nil {
 			return nil, err
@@ -224,8 +222,8 @@ func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, block string) (*spec
 	return nil, fmt.Errorf("failed to fetch signed block, no SignedBeaconBlockProvider available")
 }
 
-func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, block string) ([]*deneb.BlobSidecar, error) {
-	if provider, isProvider := f.httpClient.(eth2client.BlobSidecarsProvider); isProvider {
+func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, httpClient eth2client.Service, block string) ([]*deneb.BlobSidecar, error) {
+	if provider, isProvider := httpClient.(eth2client.BlobSidecarsProvider); isProvider {
 		blobSidecarResponse, err := provider.BlobSidecars(ctx, &api.BlobSidecarsOpts{Block: block})
 		if err != nil {
 			return nil, err
@@ -237,8 +235,8 @@ func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, block string) ([]*d
 	return nil, fmt.Errorf("failed to fetch blob sidecar, no BlobSidecarsProvider available")
 }
 
-func (f *HttpFetcher) fetchGenesis(ctx context.Context) (*v1.Genesis, error) {
-	if provider, isProvider := f.httpClient.(eth2client.GenesisProvider); isProvider {
+func (f *HttpFetcher) fetchGenesis(ctx context.Context, httpClient eth2client.Service) (*v1.Genesis, error) {
+	if provider, isProvider := httpClient.(eth2client.GenesisProvider); isProvider {
 		genesisResponse, err := provider.Genesis(ctx, &api.GenesisOpts{})
 		if err != nil {
 			return nil, err
