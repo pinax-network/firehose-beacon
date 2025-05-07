@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/http"
 	"github.com/pinax-network/firehose-beacon/blockfetcher"
 	"github.com/rs/zerolog"
@@ -9,6 +10,7 @@ import (
 	"github.com/streamingfast/cli/sflags"
 	firecore "github.com/streamingfast/firehose-core"
 	"github.com/streamingfast/firehose-core/blockpoller"
+	"github.com/streamingfast/firehose-core/rpc"
 	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
 	"strconv"
@@ -28,12 +30,14 @@ func NewFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {
 	cmd.Flags().Duration("latest-block-retry-interval", time.Second, "interval between fetch")
 	cmd.Flags().Int("block-fetch-batch-size", 10, "Number of blocks to fetch in a single batch")
 	cmd.Flags().Duration("http-timeout", 10*time.Second, "Timeout for http calls to the Lighthouse api")
+	cmd.Flags().Duration("max-block-fetch-duration", 5*time.Second, "maximum delay before retrying a block fetch")
 
 	return cmd
 }
 
 func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecutor {
 	return func(cmd *cobra.Command, args []string) (err error) {
+
 		ctx := cmd.Context()
 		httpEndpoint := args[0]
 
@@ -45,6 +49,8 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 		}
 
 		fetchInterval := sflags.MustGetDuration(cmd, "interval-between-fetch")
+		maxBlockFetchDuration := sflags.MustGetDuration(cmd, "max-block-fetch-duration")
+		latestBlockRetryInterval := sflags.MustGetDuration(cmd, "latest-block-retry-interval")
 
 		logger.Info(
 			"launching firehose-beacon poller",
@@ -52,7 +58,8 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 			zap.String("state_dir", stateDir),
 			zap.Uint64("first_streamable_block", startBlock),
 			zap.Duration("interval_between_fetch", fetchInterval),
-			zap.Duration("latest_block_retry_interval", sflags.MustGetDuration(cmd, "latest-block-retry-interval")),
+			zap.Duration("max_block_fetch_duration", maxBlockFetchDuration),
+			zap.Duration("latest_block_retry_interval", latestBlockRetryInterval),
 		)
 
 		httpClient, err := http.New(ctx,
@@ -64,20 +71,18 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 			return fmt.Errorf("failed to create Lighthouse http client: %w", err)
 		}
 
-		latestBlockRetryInterval := sflags.MustGetDuration(cmd, "latest-block-retry-interval")
 		httpFetcher, err := blockfetcher.NewHttp(httpClient, fetchInterval, latestBlockRetryInterval, logger)
 		if err != nil {
 			return fmt.Errorf("failed to setup http blockfetcher: %w", err)
 		}
 
-		poller := blockpoller.New(
-			httpFetcher,
-			blockpoller.NewFireBlockHandler("type.googleapis.com/sf.beacon.type.v1.Block"),
-			blockpoller.WithStoringState(stateDir),
-			blockpoller.WithLogger(logger),
-		)
+		rpcClients := rpc.NewClients(maxBlockFetchDuration, rpc.NewRollingStrategyAlwaysUseFirst[eth2client.Service](), logger)
+		rpcClients.Add(httpClient)
 
-		err = poller.Run(ctx, startBlock, sflags.MustGetInt(cmd, "block-fetch-batch-size"))
+		handler := blockpoller.NewFireBlockHandler("type.googleapis.com/sf.beacon.type.v1.Block")
+		poller := blockpoller.New[eth2client.Service](httpFetcher, handler, rpcClients, blockpoller.WithStoringState[eth2client.Service](stateDir), blockpoller.WithLogger[eth2client.Service](logger))
+
+		err = poller.Run(startBlock, nil, sflags.MustGetInt(cmd, "block-fetch-batch-size"))
 		if err != nil {
 			return fmt.Errorf("running poller: %w", err)
 		}
