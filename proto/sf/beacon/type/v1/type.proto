@@ -13,6 +13,7 @@ enum Spec {
   BELLATRIX = 3;
   CAPELLA = 4;
   DENEB = 5;
+  ELECTRA = 6;
 }
 
 message Block {
@@ -34,6 +35,7 @@ message Block {
     BellatrixBody bellatrix = 22;
     CapellaBody capella = 23;
     DenebBody deneb = 24;
+    ElectraBody electra = 25;
   }
 
   bytes signature = 30;
@@ -106,6 +108,24 @@ message DenebBody {
   repeated Blob embedded_blobs = 20;
 }
 
+message ElectraBody {
+  bytes rando_reveal = 1;
+  Eth1Data eth1_data = 2;
+  bytes graffiti = 3;
+  repeated ProposerSlashing proposer_slashings = 4;
+  repeated AttesterSlashing attester_slashings = 5;
+  repeated ElectraAttestation attestations = 6;
+  repeated Deposit deposits = 7;
+  repeated SignedVoluntaryExit voluntary_exits = 8;
+  SyncAggregate sync_aggregate = 9;
+  DenebExecutionPayload execution_payload = 10;
+  repeated SignedBLSToExecutionChange bls_to_execution_changes = 11;
+  repeated bytes blob_kzg_commitments = 12;
+  ExecutionRequest execution_requests = 13;
+
+  repeated Blob embedded_blobs = 20;
+}
+
 message Eth1Data {
   bytes deposit_root = 1;
   uint64 deposit_count = 2;
@@ -126,6 +146,13 @@ message Attestation {
   bytes aggregation_bits = 1;
   AttestationData data = 2;
   bytes signature = 3;
+}
+
+message ElectraAttestation {
+  bytes aggregation_bits = 1;
+  AttestationData data = 2;
+  bytes signature = 3;
+  bytes committee_bits = 4;
 }
 
 message Deposit {
@@ -267,4 +294,30 @@ message Blob {
   bytes kzg_commitment = 3;
   bytes kzg_proof = 4;
   repeated bytes kzg_commitment_inclusion_proof = 5;
+}
+
+message ExecutionRequest {
+  repeated DepositRequest deposits = 1;
+  repeated WithdrawalRequest withdrawals = 2;
+  repeated ConsolidationRequest consolidations = 3;
+}
+
+message DepositRequest {
+  bytes pub_key = 1;
+  bytes withdrawal_credentials = 2;
+  uint64 amount = 3;
+  bytes signature = 4;
+  uint64 index = 5;
+}
+
+message WithdrawalRequest {
+  bytes source_address = 1;
+  bytes validator_pub_key = 2;
+  uint64 amount = 3;
+}
+
+message ConsolidationRequest {
+  bytes source_address = 1;
+  bytes source_pub_key = 2;
+  bytes target_pub_key = 3;
 }

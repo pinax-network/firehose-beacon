@@ -8,6 +8,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
@@ -77,6 +78,11 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 		beaconBlock.Body = &pbbeacon.Block_Deneb{Deneb: toDenebBody(signedBlock.Deneb, blobSidecars)}
 		beaconBlock.Signature = signedBlock.Deneb.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetDeneb().ExecutionPayload.Timestamp
+	case spec.DataVersionElectra:
+		beaconBlock.Spec = pbbeacon.Spec_ELECTRA
+		beaconBlock.Body = &pbbeacon.Block_Electra{Electra: toElectraBody(signedBlock.Electra, blobSidecars)}
+		beaconBlock.Signature = signedBlock.Electra.Signature[:]
+		beaconBlock.Timestamp = beaconBlock.GetElectra().ExecutionPayload.Timestamp
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
@@ -183,6 +189,27 @@ func toDenebBody(signedBlock *deneb.SignedBeaconBlock, blobSidecars []*deneb.Blo
 		ExecutionPayload:      denebExecutionPayloadToProto(blockBody.ExecutionPayload),
 		BlsToExecutionChanges: signedBlsToExecutionChangeToProto(blockBody.BLSToExecutionChanges),
 		BlobKzgCommitments:    kzgCommitmentsToProto(blockBody.BlobKZGCommitments),
+
+		EmbeddedBlobs: blobsToProto(blobSidecars),
+	}
+}
+
+func toElectraBody(signedBlock *electra.SignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) *pbbeacon.ElectraBody {
+	blockBody := signedBlock.Message.Body
+	return &pbbeacon.ElectraBody{
+		RandoReveal:           blockBody.RANDAOReveal[:],
+		Eth1Data:              eth1DataToProto(blockBody.ETH1Data),
+		Graffiti:              blockBody.Graffiti[:],
+		ProposerSlashings:     proposerSlashingsToProto(blockBody.ProposerSlashings),
+		AttesterSlashings:     electraAttesterSlashingsToProto(blockBody.AttesterSlashings),
+		Attestations:          electraAttestationsToProto(blockBody.Attestations),
+		Deposits:              depositsToProto(blockBody.Deposits),
+		VoluntaryExits:        voluntaryExitsToProto(blockBody.VoluntaryExits),
+		SyncAggregate:         syncAggregateToProto(blockBody.SyncAggregate),
+		ExecutionPayload:      denebExecutionPayloadToProto(blockBody.ExecutionPayload),
+		BlsToExecutionChanges: signedBlsToExecutionChangeToProto(blockBody.BLSToExecutionChanges),
+		BlobKzgCommitments:    kzgCommitmentsToProto(blockBody.BlobKZGCommitments),
+		ExecutionRequests:     executionRequestsToProto(blockBody.ExecutionRequests),
 
 		EmbeddedBlobs: blobsToProto(blobSidecars),
 	}
@@ -444,6 +471,84 @@ func kgzCommitmentInclusionProofToProto(kzgCommitmentInclusionProof deneb.KZGCom
 	res := make([][]byte, 0, len(kzgCommitmentInclusionProof))
 	for _, k := range kzgCommitmentInclusionProof {
 		res = append(res, k[:])
+	}
+	return res
+}
+
+func electraAttesterSlashingsToProto(attesterSlashings []*electra.AttesterSlashing) []*pbbeacon.AttesterSlashing {
+	res := make([]*pbbeacon.AttesterSlashing, 0, len(attesterSlashings))
+	for _, a := range attesterSlashings {
+		res = append(res, &pbbeacon.AttesterSlashing{
+			Attestation_1: electraIndexedAttestationToProto(a.Attestation1),
+			Attestation_2: electraIndexedAttestationToProto(a.Attestation2),
+		})
+	}
+	return res
+}
+
+func electraIndexedAttestationToProto(indexedAttestation *electra.IndexedAttestation) *pbbeacon.IndexedAttestation {
+	return &pbbeacon.IndexedAttestation{
+		AttestingIndices: indexedAttestation.AttestingIndices,
+		Data:             attestationDataToProto(indexedAttestation.Data),
+		Signature:        indexedAttestation.Signature[:],
+	}
+}
+
+func electraAttestationsToProto(attestations []*electra.Attestation) []*pbbeacon.ElectraAttestation {
+	res := make([]*pbbeacon.ElectraAttestation, 0, len(attestations))
+	for _, a := range attestations {
+		res = append(res, &pbbeacon.ElectraAttestation{
+			AggregationBits: a.AggregationBits,
+			Data:            attestationDataToProto(a.Data),
+			Signature:       a.Signature[:],
+			CommitteeBits:   a.CommitteeBits[:],
+		})
+	}
+	return res
+}
+
+func executionRequestsToProto(executionRequests *electra.ExecutionRequests) *pbbeacon.ExecutionRequest {
+	return &pbbeacon.ExecutionRequest{
+		Deposits:       depositRequestsToProto(executionRequests.Deposits),
+		Withdrawals:    withdrawalRequestsToProto(executionRequests.Withdrawals),
+		Consolidations: consolidationRequestsToProto(executionRequests.Consolidations),
+	}
+}
+
+func depositRequestsToProto(deposits []*electra.DepositRequest) []*pbbeacon.DepositRequest {
+	res := make([]*pbbeacon.DepositRequest, 0, len(deposits))
+	for _, d := range deposits {
+		res = append(res, &pbbeacon.DepositRequest{
+			PubKey:                d.Pubkey[:],
+			WithdrawalCredentials: d.WithdrawalCredentials,
+			Amount:                uint64(d.Amount),
+			Signature:             d.Signature[:],
+			Index:                 d.Index,
+		})
+	}
+	return res
+}
+
+func withdrawalRequestsToProto(withdrawals []*electra.WithdrawalRequest) []*pbbeacon.WithdrawalRequest {
+	res := make([]*pbbeacon.WithdrawalRequest, 0, len(withdrawals))
+	for _, w := range withdrawals {
+		res = append(res, &pbbeacon.WithdrawalRequest{
+			SourceAddress:   w.SourceAddress[:],
+			ValidatorPubKey: w.ValidatorPubkey[:],
+			Amount:          uint64(w.Amount),
+		})
+	}
+	return res
+}
+
+func consolidationRequestsToProto(consolidations []*electra.ConsolidationRequest) []*pbbeacon.ConsolidationRequest {
+	res := make([]*pbbeacon.ConsolidationRequest, 0, len(consolidations))
+	for _, c := range consolidations {
+		res = append(res, &pbbeacon.ConsolidationRequest{
+			SourceAddress: c.SourceAddress[:],
+			SourcePubKey:  c.SourcePubkey[:],
+			TargetPubKey:  c.TargetPubkey[:],
+		})
 	}
 	return res
 }
