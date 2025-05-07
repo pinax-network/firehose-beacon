@@ -143,6 +143,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
+		f.logger.Warn("failed to fetch signed block", zap.Error(err))
 		var apiErr *api.Error
 		if errors.As(err, &apiErr) {
 			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
@@ -151,6 +152,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 			// we received the header before from Lighthouse, can we assume that it also is able to return the signed block?
 			switch apiErr.StatusCode {
 			case 404:
+				f.logger.Info("received a 404, marking slot as skipped", zap.Uint64("slot", requestedSlot))
 				return nil, true, nil
 			}
 		}
