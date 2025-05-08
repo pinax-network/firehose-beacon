@@ -31,14 +31,16 @@ type HttpFetcher struct {
 	seenBlockNums            *sync.Map
 	genesisTimestamp         uint64
 	blockTime                uint64
+	ignoreMissingBlobs       bool
 }
 
-func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, logger *zap.Logger) (*HttpFetcher, error) {
+func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, ignoreMissingBlobs bool, logger *zap.Logger) (*HttpFetcher, error) {
 	f := &HttpFetcher{
 		fetchInterval:            fetchInterval,
 		latestBlockRetryInterval: latestBlockRetryInterval,
 		logger:                   logger,
 		seenBlockNums:            &sync.Map{},
+		ignoreMissingBlobs:       ignoreMissingBlobs,
 	}
 	err := f.fetchBlockTimes(httpClient)
 	if err != nil {
@@ -103,7 +105,6 @@ func (f *HttpFetcher) IsBlockAvailable(requestedSlot uint64) bool {
 }
 
 func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
-	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot))
 
 	sleepDuration := time.Duration(0)
 	for f.latestConfirmedSlot < requestedSlot {
@@ -129,12 +130,10 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 	}
 
 	if f.latestFinalizedSlot < requestedSlot {
-
 		finalizedBlockHeader, err := f.fetchBlockHeader(ctx, httpClient, FinalizedBlock)
 		if err != nil {
 			return nil, false, fmt.Errorf("fetching finalized block num: %w", err)
 		}
-
 		f.latestFinalizedSlot = uint64(finalizedBlockHeader.Header.Message.Slot)
 		f.logger.Info("got latest finalized slot block", zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("requested_block_num", requestedSlot))
 	}
@@ -156,12 +155,14 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 				return nil, true, nil
 			}
 		}
+		f.logger.Error("failed to fetch signed block", zap.Error(err), zap.Uint64("slot", requestedSlot))
 		return nil, false, fmt.Errorf("fetching signed block: %w", err)
 	}
 
 	// unfortunately, the signed block is missing the block root, so we need to request it separately here
 	blockHeader, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
+		f.logger.Error("failed to fetch block header", zap.Error(err), zap.Uint64("slot", requestedSlot))
 		return nil, false, fmt.Errorf("fetching block header: %w", err)
 	}
 
@@ -186,13 +187,26 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	blobSidecars, err := f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
 	if err != nil {
-		return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) {
+			if apiErr.StatusCode == 404 && f.ignoreMissingBlobs {
+				f.logger.Debug("failed to fetch blob sidecars, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
+				blobSidecars = []*deneb.BlobSidecar{}
+			} else {
+				f.logger.Error("failed to fetch blob sidecars, if Lighthouse has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error", zap.Error(err))
+				return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
+			}
+		} else {
+			f.logger.Error("failed to fetch blob sidecars", zap.Error(err))
+			return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
+		}
 	}
 
 	f.lastFetchAt = time.Now()
 
 	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, f.genesisTimestamp, f.blockTime, blockHeader, signedBlock, blobSidecars)
 	if err != nil {
+		f.logger.Error("failed to decode block", zap.Error(err), zap.Uint64("slot", requestedSlot))
 		return nil, false, fmt.Errorf("decoding block %d: %w", requestedSlot, err)
 	}
 

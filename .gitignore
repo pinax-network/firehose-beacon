@@ -1,6 +1,7 @@
 /firebeacon
 /data
 *.spkg
+dev
 
 ### VisualStudioCode template
 .vscode/*
