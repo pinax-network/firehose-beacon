@@ -29,7 +29,6 @@ func NewFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {
 	cmd.Flags().Duration("interval-between-fetch", 0, "interval between fetch")
 	cmd.Flags().Duration("latest-block-retry-interval", time.Second, "interval between fetch")
 	cmd.Flags().Int("block-fetch-batch-size", 10, "Number of blocks to fetch in a single batch")
-	cmd.Flags().Duration("http-timeout", 10*time.Second, "Timeout for http calls to the Lighthouse api")
 	cmd.Flags().Duration("max-block-fetch-duration", 5*time.Second, "maximum delay before retrying a block fetch")
 	cmd.Flags().Bool("ignore-missing-blobs", false, "ignores missing blob data for a slot which is probably caused due to Lighthouse having pruned them")
 
@@ -71,7 +70,6 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 		httpClient, err := http.New(ctx,
 			http.WithAddress(httpEndpoint),
 			http.WithLogLevel(logLevel),
-			http.WithTimeout(sflags.MustGetDuration(cmd, "http-timeout")),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create Lighthouse http client: %w", err)
