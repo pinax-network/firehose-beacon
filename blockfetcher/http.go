@@ -190,7 +190,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 		var apiErr *api.Error
 		if errors.As(err, &apiErr) {
 			if apiErr.StatusCode == 404 && f.ignoreMissingBlobs {
-				f.logger.Debug("failed to fetch blob sidecars, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
+				f.logger.Error("failed to fetch blob sidecars, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
 				blobSidecars = []*deneb.BlobSidecar{}
 			} else {
 				f.logger.Error("failed to fetch blob sidecars, if Lighthouse has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error", zap.Error(err))
