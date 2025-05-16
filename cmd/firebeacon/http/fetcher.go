@@ -70,6 +70,7 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 		httpClient, err := http.New(ctx,
 			http.WithAddress(httpEndpoint),
 			http.WithLogLevel(logLevel),
+			http.WithTimeout(maxBlockFetchDuration),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create Lighthouse http client: %w", err)
@@ -80,7 +81,7 @@ func fetchRunE(logger *zap.Logger, tracer logging.Tracer) firecore.CommandExecut
 			return fmt.Errorf("failed to setup http blockfetcher: %w", err)
 		}
 
-		rpcClients := rpc.NewClients(maxBlockFetchDuration, rpc.NewRollingStrategyAlwaysUseFirst[eth2client.Service](), logger)
+		rpcClients := rpc.NewClients(maxBlockFetchDuration, rpc.NewStickyRollingStrategy[eth2client.Service](), logger)
 		rpcClients.Add(httpClient)
 
 		handler := blockpoller.NewFireBlockHandler("type.googleapis.com/sf.beacon.type.v1.Block")
