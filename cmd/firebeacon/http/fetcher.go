@@ -2,6 +2,9 @@ package http
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/http"
 	"github.com/pinax-network/firehose-beacon/blockfetcher"
@@ -13,8 +16,6 @@ import (
 	"github.com/streamingfast/firehose-core/rpc"
 	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
-	"strconv"
-	"time"
 )
 
 func NewFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {

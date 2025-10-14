@@ -2,6 +2,8 @@ package blockfetcher
 
 import (
 	"fmt"
+	"time"
+
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -14,7 +16,6 @@ import (
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
@@ -83,6 +84,11 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 		beaconBlock.Body = &pbbeacon.Block_Electra{Electra: toElectraBody(signedBlock.Electra, blobSidecars)}
 		beaconBlock.Signature = signedBlock.Electra.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetElectra().ExecutionPayload.Timestamp
+	case spec.DataVersionFulu:
+		beaconBlock.Spec = pbbeacon.Spec_FUSAKA
+		beaconBlock.Body = &pbbeacon.Block_Fusaka{Fusaka: toElectraBody(signedBlock.Fulu, blobSidecars)}
+		beaconBlock.Signature = signedBlock.Fulu.Signature[:]
+		beaconBlock.Timestamp = beaconBlock.GetFusaka().ExecutionPayload.Timestamp
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
