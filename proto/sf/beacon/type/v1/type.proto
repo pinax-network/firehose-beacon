@@ -14,6 +14,7 @@ enum Spec {
   CAPELLA = 4;
   DENEB = 5;
   ELECTRA = 6;
+  FUSAKA = 7;
 }
 
 message Block {
@@ -36,6 +37,7 @@ message Block {
     CapellaBody capella = 23;
     DenebBody deneb = 24;
     ElectraBody electra = 25;
+    ElectraBody fusaka = 26;
   }
 
   bytes signature = 30;
