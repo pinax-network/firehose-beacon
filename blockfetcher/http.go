@@ -84,6 +84,8 @@ func (f *HttpFetcher) fetchBlockTimes(httpClient eth2client.Service) error {
 		headBlockTime = signedBlock.Deneb.Message.Body.ExecutionPayload.Timestamp
 	case spec.DataVersionElectra:
 		headBlockTime = signedBlock.Electra.Message.Body.ExecutionPayload.Timestamp
+	case spec.DataVersionFulu:
+		headBlockTime = signedBlock.Fulu.Message.Body.ExecutionPayload.Timestamp
 	default:
 		return fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
