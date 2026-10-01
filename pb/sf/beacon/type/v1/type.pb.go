@@ -33,6 +33,7 @@ const (
 	Spec_DENEB       Spec = 5
 	Spec_ELECTRA     Spec = 6
 	Spec_FUSAKA      Spec = 7
+	Spec_GLOAS       Spec = 8
 )
 
 // Enum value maps for Spec.
@@ -46,6 +47,7 @@ var (
 		5: "DENEB",
 		6: "ELECTRA",
 		7: "FUSAKA",
+		8: "GLOAS",
 	}
 	Spec_value = map[string]int32{
 		"UNSPECIFIED": 0,
@@ -56,6 +58,7 @@ var (
 		"DENEB":       5,
 		"ELECTRA":     6,
 		"FUSAKA":      7,
+		"GLOAS":       8,
 	}
 )
 
@@ -106,6 +109,7 @@ type Block struct {
 	//	*Block_Deneb
 	//	*Block_Electra
 	//	*Block_Fusaka
+	//	*Block_Gloas
 	Body          isBlock_Body           `protobuf_oneof:"Body"`
 	Signature     []byte                 `protobuf:"bytes,30,opt,name=signature,proto3" json:"signature,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,31,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
@@ -276,6 +280,15 @@ func (x *Block) GetFusaka() *ElectraBody {
 	return nil
 }
 
+func (x *Block) GetGloas() *GloasBody {
+	if x != nil {
+		if x, ok := x.Body.(*Block_Gloas); ok {
+			return x.Gloas
+		}
+	}
+	return nil
+}
+
 func (x *Block) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -322,6 +335,10 @@ type Block_Fusaka struct {
 	Fusaka *ElectraBody `protobuf:"bytes,26,opt,name=fusaka,proto3,oneof"`
 }
 
+type Block_Gloas struct {
+	Gloas *GloasBody `protobuf:"bytes,27,opt,name=gloas,proto3,oneof"`
+}
+
 func (*Block_Phase0) isBlock_Body() {}
 
 func (*Block_Altair) isBlock_Body() {}
@@ -335,6 +352,8 @@ func (*Block_Deneb) isBlock_Body() {}
 func (*Block_Electra) isBlock_Body() {}
 
 func (*Block_Fusaka) isBlock_Body() {}
+
+func (*Block_Gloas) isBlock_Body() {}
 
 type Phase0Body struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -1064,6 +1083,171 @@ func (x *ElectraBody) GetEmbeddedBlobs() []*Blob {
 	return nil
 }
 
+// GloasBody is the beacon block body from the Gloas spec onwards (EIP-7732, enshrined proposer-builder separation).
+// The block no longer carries the execution payload itself, only the builder's signed bid for it. The builder reveals
+// the payload separately in a signed execution payload envelope.
+type GloasBody struct {
+	state                     protoimpl.MessageState        `protogen:"open.v1"`
+	RandoReveal               []byte                        `protobuf:"bytes,1,opt,name=rando_reveal,json=randoReveal,proto3" json:"rando_reveal,omitempty"`
+	Eth1Data                  *Eth1Data                     `protobuf:"bytes,2,opt,name=eth1_data,json=eth1Data,proto3" json:"eth1_data,omitempty"`
+	Graffiti                  []byte                        `protobuf:"bytes,3,opt,name=graffiti,proto3" json:"graffiti,omitempty"`
+	ProposerSlashings         []*ProposerSlashing           `protobuf:"bytes,4,rep,name=proposer_slashings,json=proposerSlashings,proto3" json:"proposer_slashings,omitempty"`
+	AttesterSlashings         []*AttesterSlashing           `protobuf:"bytes,5,rep,name=attester_slashings,json=attesterSlashings,proto3" json:"attester_slashings,omitempty"`
+	Attestations              []*ElectraAttestation         `protobuf:"bytes,6,rep,name=attestations,proto3" json:"attestations,omitempty"`
+	Deposits                  []*Deposit                    `protobuf:"bytes,7,rep,name=deposits,proto3" json:"deposits,omitempty"`
+	VoluntaryExits            []*SignedVoluntaryExit        `protobuf:"bytes,8,rep,name=voluntary_exits,json=voluntaryExits,proto3" json:"voluntary_exits,omitempty"`
+	SyncAggregate             *SyncAggregate                `protobuf:"bytes,9,opt,name=sync_aggregate,json=syncAggregate,proto3" json:"sync_aggregate,omitempty"`
+	BlsToExecutionChanges     []*SignedBLSToExecutionChange `protobuf:"bytes,11,rep,name=bls_to_execution_changes,json=blsToExecutionChanges,proto3" json:"bls_to_execution_changes,omitempty"`
+	SignedExecutionPayloadBid *SignedExecutionPayloadBid    `protobuf:"bytes,14,opt,name=signed_execution_payload_bid,json=signedExecutionPayloadBid,proto3" json:"signed_execution_payload_bid,omitempty"`
+	PayloadAttestations       []*PayloadAttestation         `protobuf:"bytes,15,rep,name=payload_attestations,json=payloadAttestations,proto3" json:"payload_attestations,omitempty"`
+	// execution requests of the parent block's payload, processed in this block
+	ParentExecutionRequests *ExecutionRequest `protobuf:"bytes,16,opt,name=parent_execution_requests,json=parentExecutionRequests,proto3" json:"parent_execution_requests,omitempty"`
+	// The execution payload envelope the builder revealed for this block. It is only set when the canonical chain
+	// built on the payload, which is decided by the next canonical block's bid. It is unset when the builder withheld
+	// the payload or the chain built on the empty slot instead.
+	ExecutionPayloadEnvelope *SignedExecutionPayloadEnvelope `protobuf:"bytes,17,opt,name=execution_payload_envelope,json=executionPayloadEnvelope,proto3" json:"execution_payload_envelope,omitempty"`
+	// Blobs are only embedded when execution_payload_envelope is set. The KZG proofs and inclusion proofs are not
+	// available from the beacon node's blobs endpoint and are left empty.
+	EmbeddedBlobs []*Blob `protobuf:"bytes,20,rep,name=embedded_blobs,json=embeddedBlobs,proto3" json:"embedded_blobs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GloasBody) Reset() {
+	*x = GloasBody{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GloasBody) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GloasBody) ProtoMessage() {}
+
+func (x *GloasBody) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GloasBody.ProtoReflect.Descriptor instead.
+func (*GloasBody) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GloasBody) GetRandoReveal() []byte {
+	if x != nil {
+		return x.RandoReveal
+	}
+	return nil
+}
+
+func (x *GloasBody) GetEth1Data() *Eth1Data {
+	if x != nil {
+		return x.Eth1Data
+	}
+	return nil
+}
+
+func (x *GloasBody) GetGraffiti() []byte {
+	if x != nil {
+		return x.Graffiti
+	}
+	return nil
+}
+
+func (x *GloasBody) GetProposerSlashings() []*ProposerSlashing {
+	if x != nil {
+		return x.ProposerSlashings
+	}
+	return nil
+}
+
+func (x *GloasBody) GetAttesterSlashings() []*AttesterSlashing {
+	if x != nil {
+		return x.AttesterSlashings
+	}
+	return nil
+}
+
+func (x *GloasBody) GetAttestations() []*ElectraAttestation {
+	if x != nil {
+		return x.Attestations
+	}
+	return nil
+}
+
+func (x *GloasBody) GetDeposits() []*Deposit {
+	if x != nil {
+		return x.Deposits
+	}
+	return nil
+}
+
+func (x *GloasBody) GetVoluntaryExits() []*SignedVoluntaryExit {
+	if x != nil {
+		return x.VoluntaryExits
+	}
+	return nil
+}
+
+func (x *GloasBody) GetSyncAggregate() *SyncAggregate {
+	if x != nil {
+		return x.SyncAggregate
+	}
+	return nil
+}
+
+func (x *GloasBody) GetBlsToExecutionChanges() []*SignedBLSToExecutionChange {
+	if x != nil {
+		return x.BlsToExecutionChanges
+	}
+	return nil
+}
+
+func (x *GloasBody) GetSignedExecutionPayloadBid() *SignedExecutionPayloadBid {
+	if x != nil {
+		return x.SignedExecutionPayloadBid
+	}
+	return nil
+}
+
+func (x *GloasBody) GetPayloadAttestations() []*PayloadAttestation {
+	if x != nil {
+		return x.PayloadAttestations
+	}
+	return nil
+}
+
+func (x *GloasBody) GetParentExecutionRequests() *ExecutionRequest {
+	if x != nil {
+		return x.ParentExecutionRequests
+	}
+	return nil
+}
+
+func (x *GloasBody) GetExecutionPayloadEnvelope() *SignedExecutionPayloadEnvelope {
+	if x != nil {
+		return x.ExecutionPayloadEnvelope
+	}
+	return nil
+}
+
+func (x *GloasBody) GetEmbeddedBlobs() []*Blob {
+	if x != nil {
+		return x.EmbeddedBlobs
+	}
+	return nil
+}
+
 type Eth1Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DepositRoot   []byte                 `protobuf:"bytes,1,opt,name=deposit_root,json=depositRoot,proto3" json:"deposit_root,omitempty"`
@@ -1075,7 +1259,7 @@ type Eth1Data struct {
 
 func (x *Eth1Data) Reset() {
 	*x = Eth1Data{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[7]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1271,7 @@ func (x *Eth1Data) String() string {
 func (*Eth1Data) ProtoMessage() {}
 
 func (x *Eth1Data) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[7]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1284,7 @@ func (x *Eth1Data) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Eth1Data.ProtoReflect.Descriptor instead.
 func (*Eth1Data) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{7}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Eth1Data) GetDepositRoot() []byte {
@@ -1134,7 +1318,7 @@ type ProposerSlashing struct {
 
 func (x *ProposerSlashing) Reset() {
 	*x = ProposerSlashing{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[8]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1330,7 @@ func (x *ProposerSlashing) String() string {
 func (*ProposerSlashing) ProtoMessage() {}
 
 func (x *ProposerSlashing) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[8]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1343,7 @@ func (x *ProposerSlashing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProposerSlashing.ProtoReflect.Descriptor instead.
 func (*ProposerSlashing) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{8}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ProposerSlashing) GetSignedHeader_1() *SignedBeaconBlockHeader {
@@ -1186,7 +1370,7 @@ type AttesterSlashing struct {
 
 func (x *AttesterSlashing) Reset() {
 	*x = AttesterSlashing{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[9]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1198,7 +1382,7 @@ func (x *AttesterSlashing) String() string {
 func (*AttesterSlashing) ProtoMessage() {}
 
 func (x *AttesterSlashing) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[9]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1211,7 +1395,7 @@ func (x *AttesterSlashing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttesterSlashing.ProtoReflect.Descriptor instead.
 func (*AttesterSlashing) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{9}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AttesterSlashing) GetAttestation_1() *IndexedAttestation {
@@ -1239,7 +1423,7 @@ type Attestation struct {
 
 func (x *Attestation) Reset() {
 	*x = Attestation{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[10]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1251,7 +1435,7 @@ func (x *Attestation) String() string {
 func (*Attestation) ProtoMessage() {}
 
 func (x *Attestation) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[10]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1264,7 +1448,7 @@ func (x *Attestation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attestation.ProtoReflect.Descriptor instead.
 func (*Attestation) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{10}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Attestation) GetAggregationBits() []byte {
@@ -1300,7 +1484,7 @@ type ElectraAttestation struct {
 
 func (x *ElectraAttestation) Reset() {
 	*x = ElectraAttestation{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[11]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1312,7 +1496,7 @@ func (x *ElectraAttestation) String() string {
 func (*ElectraAttestation) ProtoMessage() {}
 
 func (x *ElectraAttestation) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[11]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1325,7 +1509,7 @@ func (x *ElectraAttestation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ElectraAttestation.ProtoReflect.Descriptor instead.
 func (*ElectraAttestation) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{11}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ElectraAttestation) GetAggregationBits() []byte {
@@ -1366,7 +1550,7 @@ type Deposit struct {
 
 func (x *Deposit) Reset() {
 	*x = Deposit{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[12]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1378,7 +1562,7 @@ func (x *Deposit) String() string {
 func (*Deposit) ProtoMessage() {}
 
 func (x *Deposit) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[12]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1391,7 +1575,7 @@ func (x *Deposit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Deposit.ProtoReflect.Descriptor instead.
 func (*Deposit) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{12}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Deposit) GetProof() [][]byte {
@@ -1418,7 +1602,7 @@ type SignedVoluntaryExit struct {
 
 func (x *SignedVoluntaryExit) Reset() {
 	*x = SignedVoluntaryExit{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[13]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1430,7 +1614,7 @@ func (x *SignedVoluntaryExit) String() string {
 func (*SignedVoluntaryExit) ProtoMessage() {}
 
 func (x *SignedVoluntaryExit) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[13]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1443,7 +1627,7 @@ func (x *SignedVoluntaryExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedVoluntaryExit.ProtoReflect.Descriptor instead.
 func (*SignedVoluntaryExit) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{13}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SignedVoluntaryExit) GetMessage() *VoluntaryExit {
@@ -1470,7 +1654,7 @@ type SyncAggregate struct {
 
 func (x *SyncAggregate) Reset() {
 	*x = SyncAggregate{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[14]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1482,7 +1666,7 @@ func (x *SyncAggregate) String() string {
 func (*SyncAggregate) ProtoMessage() {}
 
 func (x *SyncAggregate) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[14]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1495,7 +1679,7 @@ func (x *SyncAggregate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncAggregate.ProtoReflect.Descriptor instead.
 func (*SyncAggregate) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{14}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SyncAggregate) GetSyncCommiteeBits() []byte {
@@ -1534,7 +1718,7 @@ type BellatrixExecutionPayload struct {
 
 func (x *BellatrixExecutionPayload) Reset() {
 	*x = BellatrixExecutionPayload{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[15]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1546,7 +1730,7 @@ func (x *BellatrixExecutionPayload) String() string {
 func (*BellatrixExecutionPayload) ProtoMessage() {}
 
 func (x *BellatrixExecutionPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[15]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1559,7 +1743,7 @@ func (x *BellatrixExecutionPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BellatrixExecutionPayload.ProtoReflect.Descriptor instead.
 func (*BellatrixExecutionPayload) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{15}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BellatrixExecutionPayload) GetParentHash() []byte {
@@ -1683,7 +1867,7 @@ type CapellaExecutionPayload struct {
 
 func (x *CapellaExecutionPayload) Reset() {
 	*x = CapellaExecutionPayload{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[16]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1695,7 +1879,7 @@ func (x *CapellaExecutionPayload) String() string {
 func (*CapellaExecutionPayload) ProtoMessage() {}
 
 func (x *CapellaExecutionPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[16]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1708,7 +1892,7 @@ func (x *CapellaExecutionPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CapellaExecutionPayload.ProtoReflect.Descriptor instead.
 func (*CapellaExecutionPayload) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{16}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CapellaExecutionPayload) GetParentHash() []byte {
@@ -1841,7 +2025,7 @@ type DenebExecutionPayload struct {
 
 func (x *DenebExecutionPayload) Reset() {
 	*x = DenebExecutionPayload{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[17]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1853,7 +2037,7 @@ func (x *DenebExecutionPayload) String() string {
 func (*DenebExecutionPayload) ProtoMessage() {}
 
 func (x *DenebExecutionPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[17]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1866,7 +2050,7 @@ func (x *DenebExecutionPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DenebExecutionPayload.ProtoReflect.Descriptor instead.
 func (*DenebExecutionPayload) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{17}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DenebExecutionPayload) GetParentHash() []byte {
@@ -1998,7 +2182,7 @@ type SignedBLSToExecutionChange struct {
 
 func (x *SignedBLSToExecutionChange) Reset() {
 	*x = SignedBLSToExecutionChange{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[18]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2010,7 +2194,7 @@ func (x *SignedBLSToExecutionChange) String() string {
 func (*SignedBLSToExecutionChange) ProtoMessage() {}
 
 func (x *SignedBLSToExecutionChange) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[18]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2023,7 +2207,7 @@ func (x *SignedBLSToExecutionChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedBLSToExecutionChange.ProtoReflect.Descriptor instead.
 func (*SignedBLSToExecutionChange) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{18}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SignedBLSToExecutionChange) GetMessage() *BLSToExecutionChange {
@@ -2051,7 +2235,7 @@ type BLSToExecutionChange struct {
 
 func (x *BLSToExecutionChange) Reset() {
 	*x = BLSToExecutionChange{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[19]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2063,7 +2247,7 @@ func (x *BLSToExecutionChange) String() string {
 func (*BLSToExecutionChange) ProtoMessage() {}
 
 func (x *BLSToExecutionChange) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[19]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2076,7 +2260,7 @@ func (x *BLSToExecutionChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BLSToExecutionChange.ProtoReflect.Descriptor instead.
 func (*BLSToExecutionChange) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{19}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *BLSToExecutionChange) GetValidatorIndex() uint64 {
@@ -2112,7 +2296,7 @@ type Withdrawal struct {
 
 func (x *Withdrawal) Reset() {
 	*x = Withdrawal{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[20]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2124,7 +2308,7 @@ func (x *Withdrawal) String() string {
 func (*Withdrawal) ProtoMessage() {}
 
 func (x *Withdrawal) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[20]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2137,7 +2321,7 @@ func (x *Withdrawal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Withdrawal.ProtoReflect.Descriptor instead.
 func (*Withdrawal) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{20}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Withdrawal) GetWithdrawalIndex() uint64 {
@@ -2178,7 +2362,7 @@ type VoluntaryExit struct {
 
 func (x *VoluntaryExit) Reset() {
 	*x = VoluntaryExit{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[21]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2190,7 +2374,7 @@ func (x *VoluntaryExit) String() string {
 func (*VoluntaryExit) ProtoMessage() {}
 
 func (x *VoluntaryExit) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[21]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2203,7 +2387,7 @@ func (x *VoluntaryExit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VoluntaryExit.ProtoReflect.Descriptor instead.
 func (*VoluntaryExit) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{21}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *VoluntaryExit) GetEpoch() uint64 {
@@ -2232,7 +2416,7 @@ type DepositData struct {
 
 func (x *DepositData) Reset() {
 	*x = DepositData{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[22]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2244,7 +2428,7 @@ func (x *DepositData) String() string {
 func (*DepositData) ProtoMessage() {}
 
 func (x *DepositData) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[22]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2257,7 +2441,7 @@ func (x *DepositData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DepositData.ProtoReflect.Descriptor instead.
 func (*DepositData) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{22}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DepositData) GetPublicKey() []byte {
@@ -2299,7 +2483,7 @@ type IndexedAttestation struct {
 
 func (x *IndexedAttestation) Reset() {
 	*x = IndexedAttestation{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[23]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2311,7 +2495,7 @@ func (x *IndexedAttestation) String() string {
 func (*IndexedAttestation) ProtoMessage() {}
 
 func (x *IndexedAttestation) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[23]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2324,7 +2508,7 @@ func (x *IndexedAttestation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexedAttestation.ProtoReflect.Descriptor instead.
 func (*IndexedAttestation) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{23}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *IndexedAttestation) GetAttestingIndices() []uint64 {
@@ -2361,7 +2545,7 @@ type AttestationData struct {
 
 func (x *AttestationData) Reset() {
 	*x = AttestationData{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[24]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2373,7 +2557,7 @@ func (x *AttestationData) String() string {
 func (*AttestationData) ProtoMessage() {}
 
 func (x *AttestationData) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[24]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2386,7 +2570,7 @@ func (x *AttestationData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttestationData.ProtoReflect.Descriptor instead.
 func (*AttestationData) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{24}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AttestationData) GetSlot() uint64 {
@@ -2434,7 +2618,7 @@ type Checkpoint struct {
 
 func (x *Checkpoint) Reset() {
 	*x = Checkpoint{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[25]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2446,7 +2630,7 @@ func (x *Checkpoint) String() string {
 func (*Checkpoint) ProtoMessage() {}
 
 func (x *Checkpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[25]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2459,7 +2643,7 @@ func (x *Checkpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Checkpoint.ProtoReflect.Descriptor instead.
 func (*Checkpoint) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{25}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Checkpoint) GetEpoch() uint64 {
@@ -2486,7 +2670,7 @@ type SignedBeaconBlockHeader struct {
 
 func (x *SignedBeaconBlockHeader) Reset() {
 	*x = SignedBeaconBlockHeader{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[26]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2498,7 +2682,7 @@ func (x *SignedBeaconBlockHeader) String() string {
 func (*SignedBeaconBlockHeader) ProtoMessage() {}
 
 func (x *SignedBeaconBlockHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[26]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2511,7 +2695,7 @@ func (x *SignedBeaconBlockHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignedBeaconBlockHeader.ProtoReflect.Descriptor instead.
 func (*SignedBeaconBlockHeader) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{26}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SignedBeaconBlockHeader) GetMessage() *BeaconBlockHeader {
@@ -2541,7 +2725,7 @@ type BeaconBlockHeader struct {
 
 func (x *BeaconBlockHeader) Reset() {
 	*x = BeaconBlockHeader{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[27]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2553,7 +2737,7 @@ func (x *BeaconBlockHeader) String() string {
 func (*BeaconBlockHeader) ProtoMessage() {}
 
 func (x *BeaconBlockHeader) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[27]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2566,7 +2750,7 @@ func (x *BeaconBlockHeader) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeaconBlockHeader.ProtoReflect.Descriptor instead.
 func (*BeaconBlockHeader) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{27}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *BeaconBlockHeader) GetSlot() uint64 {
@@ -2617,7 +2801,7 @@ type Blob struct {
 
 func (x *Blob) Reset() {
 	*x = Blob{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[28]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2629,7 +2813,7 @@ func (x *Blob) String() string {
 func (*Blob) ProtoMessage() {}
 
 func (x *Blob) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[28]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2642,7 +2826,7 @@ func (x *Blob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Blob.ProtoReflect.Descriptor instead.
 func (*Blob) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{28}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Blob) GetIndex() uint64 {
@@ -2685,13 +2869,16 @@ type ExecutionRequest struct {
 	Deposits       []*DepositRequest       `protobuf:"bytes,1,rep,name=deposits,proto3" json:"deposits,omitempty"`
 	Withdrawals    []*WithdrawalRequest    `protobuf:"bytes,2,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
 	Consolidations []*ConsolidationRequest `protobuf:"bytes,3,rep,name=consolidations,proto3" json:"consolidations,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Gloas onwards
+	BuilderDeposits []*BuilderDepositRequest `protobuf:"bytes,4,rep,name=builder_deposits,json=builderDeposits,proto3" json:"builder_deposits,omitempty"`
+	BuilderExits    []*BuilderExitRequest    `protobuf:"bytes,5,rep,name=builder_exits,json=builderExits,proto3" json:"builder_exits,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ExecutionRequest) Reset() {
 	*x = ExecutionRequest{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[29]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2703,7 +2890,7 @@ func (x *ExecutionRequest) String() string {
 func (*ExecutionRequest) ProtoMessage() {}
 
 func (x *ExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[29]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2716,7 +2903,7 @@ func (x *ExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionRequest.ProtoReflect.Descriptor instead.
 func (*ExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{29}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ExecutionRequest) GetDeposits() []*DepositRequest {
@@ -2740,6 +2927,20 @@ func (x *ExecutionRequest) GetConsolidations() []*ConsolidationRequest {
 	return nil
 }
 
+func (x *ExecutionRequest) GetBuilderDeposits() []*BuilderDepositRequest {
+	if x != nil {
+		return x.BuilderDeposits
+	}
+	return nil
+}
+
+func (x *ExecutionRequest) GetBuilderExits() []*BuilderExitRequest {
+	if x != nil {
+		return x.BuilderExits
+	}
+	return nil
+}
+
 type DepositRequest struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	PubKey                []byte                 `protobuf:"bytes,1,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
@@ -2753,7 +2954,7 @@ type DepositRequest struct {
 
 func (x *DepositRequest) Reset() {
 	*x = DepositRequest{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[30]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2765,7 +2966,7 @@ func (x *DepositRequest) String() string {
 func (*DepositRequest) ProtoMessage() {}
 
 func (x *DepositRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[30]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,7 +2979,7 @@ func (x *DepositRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DepositRequest.ProtoReflect.Descriptor instead.
 func (*DepositRequest) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{30}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DepositRequest) GetPubKey() []byte {
@@ -2827,7 +3028,7 @@ type WithdrawalRequest struct {
 
 func (x *WithdrawalRequest) Reset() {
 	*x = WithdrawalRequest{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[31]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2839,7 +3040,7 @@ func (x *WithdrawalRequest) String() string {
 func (*WithdrawalRequest) ProtoMessage() {}
 
 func (x *WithdrawalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[31]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2852,7 +3053,7 @@ func (x *WithdrawalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WithdrawalRequest.ProtoReflect.Descriptor instead.
 func (*WithdrawalRequest) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{31}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *WithdrawalRequest) GetSourceAddress() []byte {
@@ -2887,7 +3088,7 @@ type ConsolidationRequest struct {
 
 func (x *ConsolidationRequest) Reset() {
 	*x = ConsolidationRequest{}
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[32]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2899,7 +3100,7 @@ func (x *ConsolidationRequest) String() string {
 func (*ConsolidationRequest) ProtoMessage() {}
 
 func (x *ConsolidationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[32]
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2912,7 +3113,7 @@ func (x *ConsolidationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConsolidationRequest.ProtoReflect.Descriptor instead.
 func (*ConsolidationRequest) Descriptor() ([]byte, []int) {
-	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{32}
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ConsolidationRequest) GetSourceAddress() []byte {
@@ -2936,11 +3137,761 @@ func (x *ConsolidationRequest) GetTargetPubKey() []byte {
 	return nil
 }
 
+type BuilderDepositRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	PubKey                []byte                 `protobuf:"bytes,1,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
+	WithdrawalCredentials []byte                 `protobuf:"bytes,2,opt,name=withdrawal_credentials,json=withdrawalCredentials,proto3" json:"withdrawal_credentials,omitempty"`
+	Amount                uint64                 `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Signature             []byte                 `protobuf:"bytes,4,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *BuilderDepositRequest) Reset() {
+	*x = BuilderDepositRequest{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuilderDepositRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuilderDepositRequest) ProtoMessage() {}
+
+func (x *BuilderDepositRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuilderDepositRequest.ProtoReflect.Descriptor instead.
+func (*BuilderDepositRequest) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *BuilderDepositRequest) GetPubKey() []byte {
+	if x != nil {
+		return x.PubKey
+	}
+	return nil
+}
+
+func (x *BuilderDepositRequest) GetWithdrawalCredentials() []byte {
+	if x != nil {
+		return x.WithdrawalCredentials
+	}
+	return nil
+}
+
+func (x *BuilderDepositRequest) GetAmount() uint64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *BuilderDepositRequest) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+type BuilderExitRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SourceAddress []byte                 `protobuf:"bytes,1,opt,name=source_address,json=sourceAddress,proto3" json:"source_address,omitempty"`
+	PubKey        []byte                 `protobuf:"bytes,2,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuilderExitRequest) Reset() {
+	*x = BuilderExitRequest{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuilderExitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuilderExitRequest) ProtoMessage() {}
+
+func (x *BuilderExitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuilderExitRequest.ProtoReflect.Descriptor instead.
+func (*BuilderExitRequest) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *BuilderExitRequest) GetSourceAddress() []byte {
+	if x != nil {
+		return x.SourceAddress
+	}
+	return nil
+}
+
+func (x *BuilderExitRequest) GetPubKey() []byte {
+	if x != nil {
+		return x.PubKey
+	}
+	return nil
+}
+
+type SignedExecutionPayloadBid struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       *ExecutionPayloadBid   `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	Signature     []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignedExecutionPayloadBid) Reset() {
+	*x = SignedExecutionPayloadBid{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignedExecutionPayloadBid) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignedExecutionPayloadBid) ProtoMessage() {}
+
+func (x *SignedExecutionPayloadBid) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignedExecutionPayloadBid.ProtoReflect.Descriptor instead.
+func (*SignedExecutionPayloadBid) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *SignedExecutionPayloadBid) GetMessage() *ExecutionPayloadBid {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *SignedExecutionPayloadBid) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+type ExecutionPayloadBid struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ParentBlockHash       []byte                 `protobuf:"bytes,1,opt,name=parent_block_hash,json=parentBlockHash,proto3" json:"parent_block_hash,omitempty"`
+	ParentBlockRoot       []byte                 `protobuf:"bytes,2,opt,name=parent_block_root,json=parentBlockRoot,proto3" json:"parent_block_root,omitempty"`
+	BlockHash             []byte                 `protobuf:"bytes,3,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`
+	PrevRandao            []byte                 `protobuf:"bytes,4,opt,name=prev_randao,json=prevRandao,proto3" json:"prev_randao,omitempty"`
+	FeeRecipient          []byte                 `protobuf:"bytes,5,opt,name=fee_recipient,json=feeRecipient,proto3" json:"fee_recipient,omitempty"`
+	GasLimit              uint64                 `protobuf:"varint,6,opt,name=gas_limit,json=gasLimit,proto3" json:"gas_limit,omitempty"`
+	BuilderIndex          uint64                 `protobuf:"varint,7,opt,name=builder_index,json=builderIndex,proto3" json:"builder_index,omitempty"`
+	Slot                  uint64                 `protobuf:"varint,8,opt,name=slot,proto3" json:"slot,omitempty"`
+	Value                 uint64                 `protobuf:"varint,9,opt,name=value,proto3" json:"value,omitempty"`
+	ExecutionPayment      uint64                 `protobuf:"varint,10,opt,name=execution_payment,json=executionPayment,proto3" json:"execution_payment,omitempty"`
+	BlobKzgCommitments    [][]byte               `protobuf:"bytes,11,rep,name=blob_kzg_commitments,json=blobKzgCommitments,proto3" json:"blob_kzg_commitments,omitempty"`
+	ExecutionRequestsRoot []byte                 `protobuf:"bytes,12,opt,name=execution_requests_root,json=executionRequestsRoot,proto3" json:"execution_requests_root,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ExecutionPayloadBid) Reset() {
+	*x = ExecutionPayloadBid{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecutionPayloadBid) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecutionPayloadBid) ProtoMessage() {}
+
+func (x *ExecutionPayloadBid) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecutionPayloadBid.ProtoReflect.Descriptor instead.
+func (*ExecutionPayloadBid) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ExecutionPayloadBid) GetParentBlockHash() []byte {
+	if x != nil {
+		return x.ParentBlockHash
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetParentBlockRoot() []byte {
+	if x != nil {
+		return x.ParentBlockRoot
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetPrevRandao() []byte {
+	if x != nil {
+		return x.PrevRandao
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetFeeRecipient() []byte {
+	if x != nil {
+		return x.FeeRecipient
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetGasLimit() uint64 {
+	if x != nil {
+		return x.GasLimit
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadBid) GetBuilderIndex() uint64 {
+	if x != nil {
+		return x.BuilderIndex
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadBid) GetSlot() uint64 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadBid) GetValue() uint64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadBid) GetExecutionPayment() uint64 {
+	if x != nil {
+		return x.ExecutionPayment
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadBid) GetBlobKzgCommitments() [][]byte {
+	if x != nil {
+		return x.BlobKzgCommitments
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadBid) GetExecutionRequestsRoot() []byte {
+	if x != nil {
+		return x.ExecutionRequestsRoot
+	}
+	return nil
+}
+
+type PayloadAttestation struct {
+	state           protoimpl.MessageState  `protogen:"open.v1"`
+	AggregationBits []byte                  `protobuf:"bytes,1,opt,name=aggregation_bits,json=aggregationBits,proto3" json:"aggregation_bits,omitempty"`
+	Data            *PayloadAttestationData `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Signature       []byte                  `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PayloadAttestation) Reset() {
+	*x = PayloadAttestation{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PayloadAttestation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PayloadAttestation) ProtoMessage() {}
+
+func (x *PayloadAttestation) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PayloadAttestation.ProtoReflect.Descriptor instead.
+func (*PayloadAttestation) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *PayloadAttestation) GetAggregationBits() []byte {
+	if x != nil {
+		return x.AggregationBits
+	}
+	return nil
+}
+
+func (x *PayloadAttestation) GetData() *PayloadAttestationData {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *PayloadAttestation) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+type PayloadAttestationData struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	BeaconBlockRoot   []byte                 `protobuf:"bytes,1,opt,name=beacon_block_root,json=beaconBlockRoot,proto3" json:"beacon_block_root,omitempty"`
+	Slot              uint64                 `protobuf:"varint,2,opt,name=slot,proto3" json:"slot,omitempty"`
+	PayloadPresent    bool                   `protobuf:"varint,3,opt,name=payload_present,json=payloadPresent,proto3" json:"payload_present,omitempty"`
+	BlobDataAvailable bool                   `protobuf:"varint,4,opt,name=blob_data_available,json=blobDataAvailable,proto3" json:"blob_data_available,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *PayloadAttestationData) Reset() {
+	*x = PayloadAttestationData{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PayloadAttestationData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PayloadAttestationData) ProtoMessage() {}
+
+func (x *PayloadAttestationData) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PayloadAttestationData.ProtoReflect.Descriptor instead.
+func (*PayloadAttestationData) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *PayloadAttestationData) GetBeaconBlockRoot() []byte {
+	if x != nil {
+		return x.BeaconBlockRoot
+	}
+	return nil
+}
+
+func (x *PayloadAttestationData) GetSlot() uint64 {
+	if x != nil {
+		return x.Slot
+	}
+	return 0
+}
+
+func (x *PayloadAttestationData) GetPayloadPresent() bool {
+	if x != nil {
+		return x.PayloadPresent
+	}
+	return false
+}
+
+func (x *PayloadAttestationData) GetBlobDataAvailable() bool {
+	if x != nil {
+		return x.BlobDataAvailable
+	}
+	return false
+}
+
+type SignedExecutionPayloadEnvelope struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Message       *ExecutionPayloadEnvelope `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	Signature     []byte                    `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignedExecutionPayloadEnvelope) Reset() {
+	*x = SignedExecutionPayloadEnvelope{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignedExecutionPayloadEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignedExecutionPayloadEnvelope) ProtoMessage() {}
+
+func (x *SignedExecutionPayloadEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignedExecutionPayloadEnvelope.ProtoReflect.Descriptor instead.
+func (*SignedExecutionPayloadEnvelope) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *SignedExecutionPayloadEnvelope) GetMessage() *ExecutionPayloadEnvelope {
+	if x != nil {
+		return x.Message
+	}
+	return nil
+}
+
+func (x *SignedExecutionPayloadEnvelope) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+type ExecutionPayloadEnvelope struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Payload               *GloasExecutionPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
+	ExecutionRequests     *ExecutionRequest      `protobuf:"bytes,2,opt,name=execution_requests,json=executionRequests,proto3" json:"execution_requests,omitempty"`
+	BuilderIndex          uint64                 `protobuf:"varint,3,opt,name=builder_index,json=builderIndex,proto3" json:"builder_index,omitempty"`
+	BeaconBlockRoot       []byte                 `protobuf:"bytes,4,opt,name=beacon_block_root,json=beaconBlockRoot,proto3" json:"beacon_block_root,omitempty"`
+	ParentBeaconBlockRoot []byte                 `protobuf:"bytes,5,opt,name=parent_beacon_block_root,json=parentBeaconBlockRoot,proto3" json:"parent_beacon_block_root,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ExecutionPayloadEnvelope) Reset() {
+	*x = ExecutionPayloadEnvelope{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecutionPayloadEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecutionPayloadEnvelope) ProtoMessage() {}
+
+func (x *ExecutionPayloadEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecutionPayloadEnvelope.ProtoReflect.Descriptor instead.
+func (*ExecutionPayloadEnvelope) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ExecutionPayloadEnvelope) GetPayload() *GloasExecutionPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadEnvelope) GetExecutionRequests() *ExecutionRequest {
+	if x != nil {
+		return x.ExecutionRequests
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadEnvelope) GetBuilderIndex() uint64 {
+	if x != nil {
+		return x.BuilderIndex
+	}
+	return 0
+}
+
+func (x *ExecutionPayloadEnvelope) GetBeaconBlockRoot() []byte {
+	if x != nil {
+		return x.BeaconBlockRoot
+	}
+	return nil
+}
+
+func (x *ExecutionPayloadEnvelope) GetParentBeaconBlockRoot() []byte {
+	if x != nil {
+		return x.ParentBeaconBlockRoot
+	}
+	return nil
+}
+
+type GloasExecutionPayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ParentHash    []byte                 `protobuf:"bytes,1,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
+	FeeRecipient  []byte                 `protobuf:"bytes,2,opt,name=fee_recipient,json=feeRecipient,proto3" json:"fee_recipient,omitempty"`
+	StateRoot     []byte                 `protobuf:"bytes,3,opt,name=state_root,json=stateRoot,proto3" json:"state_root,omitempty"`
+	ReceiptsRoot  []byte                 `protobuf:"bytes,4,opt,name=receipts_root,json=receiptsRoot,proto3" json:"receipts_root,omitempty"`
+	LogsBloom     []byte                 `protobuf:"bytes,5,opt,name=logs_bloom,json=logsBloom,proto3" json:"logs_bloom,omitempty"`
+	PrevRandao    []byte                 `protobuf:"bytes,6,opt,name=prev_randao,json=prevRandao,proto3" json:"prev_randao,omitempty"`
+	BlockNumber   uint64                 `protobuf:"varint,7,opt,name=block_number,json=blockNumber,proto3" json:"block_number,omitempty"`
+	GasLimit      uint64                 `protobuf:"varint,8,opt,name=gas_limit,json=gasLimit,proto3" json:"gas_limit,omitempty"`
+	GasUsed       uint64                 `protobuf:"varint,9,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	ExtraData     []byte                 `protobuf:"bytes,11,opt,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty"`
+	BaseFeePerGas []byte                 `protobuf:"bytes,12,opt,name=base_fee_per_gas,json=baseFeePerGas,proto3" json:"base_fee_per_gas,omitempty"`
+	BlockHash     []byte                 `protobuf:"bytes,13,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`
+	Transactions  [][]byte               `protobuf:"bytes,14,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Withdrawals   []*Withdrawal          `protobuf:"bytes,15,rep,name=withdrawals,proto3" json:"withdrawals,omitempty"`
+	BlobGasUsed   uint64                 `protobuf:"varint,16,opt,name=blob_gas_used,json=blobGasUsed,proto3" json:"blob_gas_used,omitempty"`
+	ExcessBlobGas uint64                 `protobuf:"varint,17,opt,name=excess_blob_gas,json=excessBlobGas,proto3" json:"excess_blob_gas,omitempty"`
+	// RLP-encoded block access list (EIP-7928)
+	BlockAccessList []byte `protobuf:"bytes,18,opt,name=block_access_list,json=blockAccessList,proto3" json:"block_access_list,omitempty"`
+	// EIP-7843
+	SlotNumber    uint64 `protobuf:"varint,19,opt,name=slot_number,json=slotNumber,proto3" json:"slot_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GloasExecutionPayload) Reset() {
+	*x = GloasExecutionPayload{}
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GloasExecutionPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GloasExecutionPayload) ProtoMessage() {}
+
+func (x *GloasExecutionPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_sf_beacon_type_v1_type_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GloasExecutionPayload.ProtoReflect.Descriptor instead.
+func (*GloasExecutionPayload) Descriptor() ([]byte, []int) {
+	return file_sf_beacon_type_v1_type_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *GloasExecutionPayload) GetParentHash() []byte {
+	if x != nil {
+		return x.ParentHash
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetFeeRecipient() []byte {
+	if x != nil {
+		return x.FeeRecipient
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetStateRoot() []byte {
+	if x != nil {
+		return x.StateRoot
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetReceiptsRoot() []byte {
+	if x != nil {
+		return x.ReceiptsRoot
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetLogsBloom() []byte {
+	if x != nil {
+		return x.LogsBloom
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetPrevRandao() []byte {
+	if x != nil {
+		return x.PrevRandao
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetBlockNumber() uint64 {
+	if x != nil {
+		return x.BlockNumber
+	}
+	return 0
+}
+
+func (x *GloasExecutionPayload) GetGasLimit() uint64 {
+	if x != nil {
+		return x.GasLimit
+	}
+	return 0
+}
+
+func (x *GloasExecutionPayload) GetGasUsed() uint64 {
+	if x != nil {
+		return x.GasUsed
+	}
+	return 0
+}
+
+func (x *GloasExecutionPayload) GetTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetExtraData() []byte {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetBaseFeePerGas() []byte {
+	if x != nil {
+		return x.BaseFeePerGas
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetBlockHash() []byte {
+	if x != nil {
+		return x.BlockHash
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetTransactions() [][]byte {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetWithdrawals() []*Withdrawal {
+	if x != nil {
+		return x.Withdrawals
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetBlobGasUsed() uint64 {
+	if x != nil {
+		return x.BlobGasUsed
+	}
+	return 0
+}
+
+func (x *GloasExecutionPayload) GetExcessBlobGas() uint64 {
+	if x != nil {
+		return x.ExcessBlobGas
+	}
+	return 0
+}
+
+func (x *GloasExecutionPayload) GetBlockAccessList() []byte {
+	if x != nil {
+		return x.BlockAccessList
+	}
+	return nil
+}
+
+func (x *GloasExecutionPayload) GetSlotNumber() uint64 {
+	if x != nil {
+		return x.SlotNumber
+	}
+	return 0
+}
+
 var File_sf_beacon_type_v1_type_proto protoreflect.FileDescriptor
 
 const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\n" +
-	"\x1csf/beacon/type/v1/type.proto\x12\x11sf.beacon.type.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x97\x06\n" +
+	"\x1csf/beacon/type/v1/type.proto\x12\x11sf.beacon.type.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\x06\n" +
 	"\x05Block\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12+\n" +
 	"\x04spec\x18\x02 \x01(\x0e2\x17.sf.beacon.type.v1.SpecR\x04spec\x12\x12\n" +
@@ -2960,7 +3911,8 @@ const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\acapella\x18\x17 \x01(\v2\x1e.sf.beacon.type.v1.CapellaBodyH\x00R\acapella\x124\n" +
 	"\x05deneb\x18\x18 \x01(\v2\x1c.sf.beacon.type.v1.DenebBodyH\x00R\x05deneb\x12:\n" +
 	"\aelectra\x18\x19 \x01(\v2\x1e.sf.beacon.type.v1.ElectraBodyH\x00R\aelectra\x128\n" +
-	"\x06fusaka\x18\x1a \x01(\v2\x1e.sf.beacon.type.v1.ElectraBodyH\x00R\x06fusaka\x12\x1c\n" +
+	"\x06fusaka\x18\x1a \x01(\v2\x1e.sf.beacon.type.v1.ElectraBodyH\x00R\x06fusaka\x124\n" +
+	"\x05gloas\x18\x1b \x01(\v2\x1c.sf.beacon.type.v1.GloasBodyH\x00R\x05gloas\x12\x1c\n" +
 	"\tsignature\x18\x1e \x01(\fR\tsignature\x128\n" +
 	"\ttimestamp\x18\x1f \x01(\v2\x1a.google.protobuf.TimestampR\ttimestampB\x06\n" +
 	"\x04Body\"\xfa\x03\n" +
@@ -3039,6 +3991,22 @@ const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\x18bls_to_execution_changes\x18\v \x03(\v2-.sf.beacon.type.v1.SignedBLSToExecutionChangeR\x15blsToExecutionChanges\x120\n" +
 	"\x14blob_kzg_commitments\x18\f \x03(\fR\x12blobKzgCommitments\x12R\n" +
 	"\x12execution_requests\x18\r \x01(\v2#.sf.beacon.type.v1.ExecutionRequestR\x11executionRequests\x12>\n" +
+	"\x0eembedded_blobs\x18\x14 \x03(\v2\x17.sf.beacon.type.v1.BlobR\rembeddedBlobs\"\x8c\t\n" +
+	"\tGloasBody\x12!\n" +
+	"\frando_reveal\x18\x01 \x01(\fR\vrandoReveal\x128\n" +
+	"\teth1_data\x18\x02 \x01(\v2\x1b.sf.beacon.type.v1.Eth1DataR\beth1Data\x12\x1a\n" +
+	"\bgraffiti\x18\x03 \x01(\fR\bgraffiti\x12R\n" +
+	"\x12proposer_slashings\x18\x04 \x03(\v2#.sf.beacon.type.v1.ProposerSlashingR\x11proposerSlashings\x12R\n" +
+	"\x12attester_slashings\x18\x05 \x03(\v2#.sf.beacon.type.v1.AttesterSlashingR\x11attesterSlashings\x12I\n" +
+	"\fattestations\x18\x06 \x03(\v2%.sf.beacon.type.v1.ElectraAttestationR\fattestations\x126\n" +
+	"\bdeposits\x18\a \x03(\v2\x1a.sf.beacon.type.v1.DepositR\bdeposits\x12O\n" +
+	"\x0fvoluntary_exits\x18\b \x03(\v2&.sf.beacon.type.v1.SignedVoluntaryExitR\x0evoluntaryExits\x12G\n" +
+	"\x0esync_aggregate\x18\t \x01(\v2 .sf.beacon.type.v1.SyncAggregateR\rsyncAggregate\x12f\n" +
+	"\x18bls_to_execution_changes\x18\v \x03(\v2-.sf.beacon.type.v1.SignedBLSToExecutionChangeR\x15blsToExecutionChanges\x12m\n" +
+	"\x1csigned_execution_payload_bid\x18\x0e \x01(\v2,.sf.beacon.type.v1.SignedExecutionPayloadBidR\x19signedExecutionPayloadBid\x12X\n" +
+	"\x14payload_attestations\x18\x0f \x03(\v2%.sf.beacon.type.v1.PayloadAttestationR\x13payloadAttestations\x12_\n" +
+	"\x19parent_execution_requests\x18\x10 \x01(\v2#.sf.beacon.type.v1.ExecutionRequestR\x17parentExecutionRequests\x12o\n" +
+	"\x1aexecution_payload_envelope\x18\x11 \x01(\v21.sf.beacon.type.v1.SignedExecutionPayloadEnvelopeR\x18executionPayloadEnvelope\x12>\n" +
 	"\x0eembedded_blobs\x18\x14 \x03(\v2\x17.sf.beacon.type.v1.BlobR\rembeddedBlobs\"q\n" +
 	"\bEth1Data\x12!\n" +
 	"\fdeposit_root\x18\x01 \x01(\fR\vdepositRoot\x12#\n" +
@@ -3191,11 +4159,13 @@ const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\x04blob\x18\x02 \x01(\fR\x04blob\x12%\n" +
 	"\x0ekzg_commitment\x18\x03 \x01(\fR\rkzgCommitment\x12\x1b\n" +
 	"\tkzg_proof\x18\x04 \x01(\fR\bkzgProof\x12C\n" +
-	"\x1ekzg_commitment_inclusion_proof\x18\x05 \x03(\fR\x1bkzgCommitmentInclusionProof\"\xea\x01\n" +
+	"\x1ekzg_commitment_inclusion_proof\x18\x05 \x03(\fR\x1bkzgCommitmentInclusionProof\"\x8b\x03\n" +
 	"\x10ExecutionRequest\x12=\n" +
 	"\bdeposits\x18\x01 \x03(\v2!.sf.beacon.type.v1.DepositRequestR\bdeposits\x12F\n" +
 	"\vwithdrawals\x18\x02 \x03(\v2$.sf.beacon.type.v1.WithdrawalRequestR\vwithdrawals\x12O\n" +
-	"\x0econsolidations\x18\x03 \x03(\v2'.sf.beacon.type.v1.ConsolidationRequestR\x0econsolidations\"\xac\x01\n" +
+	"\x0econsolidations\x18\x03 \x03(\v2'.sf.beacon.type.v1.ConsolidationRequestR\x0econsolidations\x12S\n" +
+	"\x10builder_deposits\x18\x04 \x03(\v2(.sf.beacon.type.v1.BuilderDepositRequestR\x0fbuilderDeposits\x12J\n" +
+	"\rbuilder_exits\x18\x05 \x03(\v2%.sf.beacon.type.v1.BuilderExitRequestR\fbuilderExits\"\xac\x01\n" +
 	"\x0eDepositRequest\x12\x17\n" +
 	"\apub_key\x18\x01 \x01(\fR\x06pubKey\x125\n" +
 	"\x16withdrawal_credentials\x18\x02 \x01(\fR\x15withdrawalCredentials\x12\x16\n" +
@@ -3209,7 +4179,80 @@ const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\x14ConsolidationRequest\x12%\n" +
 	"\x0esource_address\x18\x01 \x01(\fR\rsourceAddress\x12$\n" +
 	"\x0esource_pub_key\x18\x02 \x01(\fR\fsourcePubKey\x12$\n" +
-	"\x0etarget_pub_key\x18\x03 \x01(\fR\ftargetPubKey*o\n" +
+	"\x0etarget_pub_key\x18\x03 \x01(\fR\ftargetPubKey\"\x9d\x01\n" +
+	"\x15BuilderDepositRequest\x12\x17\n" +
+	"\apub_key\x18\x01 \x01(\fR\x06pubKey\x125\n" +
+	"\x16withdrawal_credentials\x18\x02 \x01(\fR\x15withdrawalCredentials\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x04R\x06amount\x12\x1c\n" +
+	"\tsignature\x18\x04 \x01(\fR\tsignature\"T\n" +
+	"\x12BuilderExitRequest\x12%\n" +
+	"\x0esource_address\x18\x01 \x01(\fR\rsourceAddress\x12\x17\n" +
+	"\apub_key\x18\x02 \x01(\fR\x06pubKey\"{\n" +
+	"\x19SignedExecutionPayloadBid\x12@\n" +
+	"\amessage\x18\x01 \x01(\v2&.sf.beacon.type.v1.ExecutionPayloadBidR\amessage\x12\x1c\n" +
+	"\tsignature\x18\x02 \x01(\fR\tsignature\"\xd5\x03\n" +
+	"\x13ExecutionPayloadBid\x12*\n" +
+	"\x11parent_block_hash\x18\x01 \x01(\fR\x0fparentBlockHash\x12*\n" +
+	"\x11parent_block_root\x18\x02 \x01(\fR\x0fparentBlockRoot\x12\x1d\n" +
+	"\n" +
+	"block_hash\x18\x03 \x01(\fR\tblockHash\x12\x1f\n" +
+	"\vprev_randao\x18\x04 \x01(\fR\n" +
+	"prevRandao\x12#\n" +
+	"\rfee_recipient\x18\x05 \x01(\fR\ffeeRecipient\x12\x1b\n" +
+	"\tgas_limit\x18\x06 \x01(\x04R\bgasLimit\x12#\n" +
+	"\rbuilder_index\x18\a \x01(\x04R\fbuilderIndex\x12\x12\n" +
+	"\x04slot\x18\b \x01(\x04R\x04slot\x12\x14\n" +
+	"\x05value\x18\t \x01(\x04R\x05value\x12+\n" +
+	"\x11execution_payment\x18\n" +
+	" \x01(\x04R\x10executionPayment\x120\n" +
+	"\x14blob_kzg_commitments\x18\v \x03(\fR\x12blobKzgCommitments\x126\n" +
+	"\x17execution_requests_root\x18\f \x01(\fR\x15executionRequestsRoot\"\x9c\x01\n" +
+	"\x12PayloadAttestation\x12)\n" +
+	"\x10aggregation_bits\x18\x01 \x01(\fR\x0faggregationBits\x12=\n" +
+	"\x04data\x18\x02 \x01(\v2).sf.beacon.type.v1.PayloadAttestationDataR\x04data\x12\x1c\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\xb1\x01\n" +
+	"\x16PayloadAttestationData\x12*\n" +
+	"\x11beacon_block_root\x18\x01 \x01(\fR\x0fbeaconBlockRoot\x12\x12\n" +
+	"\x04slot\x18\x02 \x01(\x04R\x04slot\x12'\n" +
+	"\x0fpayload_present\x18\x03 \x01(\bR\x0epayloadPresent\x12.\n" +
+	"\x13blob_data_available\x18\x04 \x01(\bR\x11blobDataAvailable\"\x85\x01\n" +
+	"\x1eSignedExecutionPayloadEnvelope\x12E\n" +
+	"\amessage\x18\x01 \x01(\v2+.sf.beacon.type.v1.ExecutionPayloadEnvelopeR\amessage\x12\x1c\n" +
+	"\tsignature\x18\x02 \x01(\fR\tsignature\"\xbc\x02\n" +
+	"\x18ExecutionPayloadEnvelope\x12B\n" +
+	"\apayload\x18\x01 \x01(\v2(.sf.beacon.type.v1.GloasExecutionPayloadR\apayload\x12R\n" +
+	"\x12execution_requests\x18\x02 \x01(\v2#.sf.beacon.type.v1.ExecutionRequestR\x11executionRequests\x12#\n" +
+	"\rbuilder_index\x18\x03 \x01(\x04R\fbuilderIndex\x12*\n" +
+	"\x11beacon_block_root\x18\x04 \x01(\fR\x0fbeaconBlockRoot\x127\n" +
+	"\x18parent_beacon_block_root\x18\x05 \x01(\fR\x15parentBeaconBlockRoot\"\xdb\x05\n" +
+	"\x15GloasExecutionPayload\x12\x1f\n" +
+	"\vparent_hash\x18\x01 \x01(\fR\n" +
+	"parentHash\x12#\n" +
+	"\rfee_recipient\x18\x02 \x01(\fR\ffeeRecipient\x12\x1d\n" +
+	"\n" +
+	"state_root\x18\x03 \x01(\fR\tstateRoot\x12#\n" +
+	"\rreceipts_root\x18\x04 \x01(\fR\freceiptsRoot\x12\x1d\n" +
+	"\n" +
+	"logs_bloom\x18\x05 \x01(\fR\tlogsBloom\x12\x1f\n" +
+	"\vprev_randao\x18\x06 \x01(\fR\n" +
+	"prevRandao\x12!\n" +
+	"\fblock_number\x18\a \x01(\x04R\vblockNumber\x12\x1b\n" +
+	"\tgas_limit\x18\b \x01(\x04R\bgasLimit\x12\x19\n" +
+	"\bgas_used\x18\t \x01(\x04R\agasUsed\x128\n" +
+	"\ttimestamp\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1d\n" +
+	"\n" +
+	"extra_data\x18\v \x01(\fR\textraData\x12'\n" +
+	"\x10base_fee_per_gas\x18\f \x01(\fR\rbaseFeePerGas\x12\x1d\n" +
+	"\n" +
+	"block_hash\x18\r \x01(\fR\tblockHash\x12\"\n" +
+	"\ftransactions\x18\x0e \x03(\fR\ftransactions\x12?\n" +
+	"\vwithdrawals\x18\x0f \x03(\v2\x1d.sf.beacon.type.v1.WithdrawalR\vwithdrawals\x12\"\n" +
+	"\rblob_gas_used\x18\x10 \x01(\x04R\vblobGasUsed\x12&\n" +
+	"\x0fexcess_blob_gas\x18\x11 \x01(\x04R\rexcessBlobGas\x12*\n" +
+	"\x11block_access_list\x18\x12 \x01(\fR\x0fblockAccessList\x12\x1f\n" +
+	"\vslot_number\x18\x13 \x01(\x04R\n" +
+	"slotNumber*z\n" +
 	"\x04Spec\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\n" +
 	"\n" +
@@ -3221,7 +4264,8 @@ const file_sf_beacon_type_v1_type_proto_rawDesc = "" +
 	"\x05DENEB\x10\x05\x12\v\n" +
 	"\aELECTRA\x10\x06\x12\n" +
 	"\n" +
-	"\x06FUSAKA\x10\aBHZFgithub.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1;pbbeaconb\x06proto3"
+	"\x06FUSAKA\x10\a\x12\t\n" +
+	"\x05GLOAS\x10\bBHZFgithub.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1;pbbeaconb\x06proto3"
 
 var (
 	file_sf_beacon_type_v1_type_proto_rawDescOnce sync.Once
@@ -3236,130 +4280,163 @@ func file_sf_beacon_type_v1_type_proto_rawDescGZIP() []byte {
 }
 
 var file_sf_beacon_type_v1_type_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_sf_beacon_type_v1_type_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_sf_beacon_type_v1_type_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_sf_beacon_type_v1_type_proto_goTypes = []any{
-	(Spec)(0),                          // 0: sf.beacon.type.v1.Spec
-	(*Block)(nil),                      // 1: sf.beacon.type.v1.Block
-	(*Phase0Body)(nil),                 // 2: sf.beacon.type.v1.Phase0Body
-	(*AltairBody)(nil),                 // 3: sf.beacon.type.v1.AltairBody
-	(*BellatrixBody)(nil),              // 4: sf.beacon.type.v1.BellatrixBody
-	(*CapellaBody)(nil),                // 5: sf.beacon.type.v1.CapellaBody
-	(*DenebBody)(nil),                  // 6: sf.beacon.type.v1.DenebBody
-	(*ElectraBody)(nil),                // 7: sf.beacon.type.v1.ElectraBody
-	(*Eth1Data)(nil),                   // 8: sf.beacon.type.v1.Eth1Data
-	(*ProposerSlashing)(nil),           // 9: sf.beacon.type.v1.ProposerSlashing
-	(*AttesterSlashing)(nil),           // 10: sf.beacon.type.v1.AttesterSlashing
-	(*Attestation)(nil),                // 11: sf.beacon.type.v1.Attestation
-	(*ElectraAttestation)(nil),         // 12: sf.beacon.type.v1.ElectraAttestation
-	(*Deposit)(nil),                    // 13: sf.beacon.type.v1.Deposit
-	(*SignedVoluntaryExit)(nil),        // 14: sf.beacon.type.v1.SignedVoluntaryExit
-	(*SyncAggregate)(nil),              // 15: sf.beacon.type.v1.SyncAggregate
-	(*BellatrixExecutionPayload)(nil),  // 16: sf.beacon.type.v1.BellatrixExecutionPayload
-	(*CapellaExecutionPayload)(nil),    // 17: sf.beacon.type.v1.CapellaExecutionPayload
-	(*DenebExecutionPayload)(nil),      // 18: sf.beacon.type.v1.DenebExecutionPayload
-	(*SignedBLSToExecutionChange)(nil), // 19: sf.beacon.type.v1.SignedBLSToExecutionChange
-	(*BLSToExecutionChange)(nil),       // 20: sf.beacon.type.v1.BLSToExecutionChange
-	(*Withdrawal)(nil),                 // 21: sf.beacon.type.v1.Withdrawal
-	(*VoluntaryExit)(nil),              // 22: sf.beacon.type.v1.VoluntaryExit
-	(*DepositData)(nil),                // 23: sf.beacon.type.v1.DepositData
-	(*IndexedAttestation)(nil),         // 24: sf.beacon.type.v1.IndexedAttestation
-	(*AttestationData)(nil),            // 25: sf.beacon.type.v1.AttestationData
-	(*Checkpoint)(nil),                 // 26: sf.beacon.type.v1.Checkpoint
-	(*SignedBeaconBlockHeader)(nil),    // 27: sf.beacon.type.v1.SignedBeaconBlockHeader
-	(*BeaconBlockHeader)(nil),          // 28: sf.beacon.type.v1.BeaconBlockHeader
-	(*Blob)(nil),                       // 29: sf.beacon.type.v1.Blob
-	(*ExecutionRequest)(nil),           // 30: sf.beacon.type.v1.ExecutionRequest
-	(*DepositRequest)(nil),             // 31: sf.beacon.type.v1.DepositRequest
-	(*WithdrawalRequest)(nil),          // 32: sf.beacon.type.v1.WithdrawalRequest
-	(*ConsolidationRequest)(nil),       // 33: sf.beacon.type.v1.ConsolidationRequest
-	(*timestamppb.Timestamp)(nil),      // 34: google.protobuf.Timestamp
+	(Spec)(0),                              // 0: sf.beacon.type.v1.Spec
+	(*Block)(nil),                          // 1: sf.beacon.type.v1.Block
+	(*Phase0Body)(nil),                     // 2: sf.beacon.type.v1.Phase0Body
+	(*AltairBody)(nil),                     // 3: sf.beacon.type.v1.AltairBody
+	(*BellatrixBody)(nil),                  // 4: sf.beacon.type.v1.BellatrixBody
+	(*CapellaBody)(nil),                    // 5: sf.beacon.type.v1.CapellaBody
+	(*DenebBody)(nil),                      // 6: sf.beacon.type.v1.DenebBody
+	(*ElectraBody)(nil),                    // 7: sf.beacon.type.v1.ElectraBody
+	(*GloasBody)(nil),                      // 8: sf.beacon.type.v1.GloasBody
+	(*Eth1Data)(nil),                       // 9: sf.beacon.type.v1.Eth1Data
+	(*ProposerSlashing)(nil),               // 10: sf.beacon.type.v1.ProposerSlashing
+	(*AttesterSlashing)(nil),               // 11: sf.beacon.type.v1.AttesterSlashing
+	(*Attestation)(nil),                    // 12: sf.beacon.type.v1.Attestation
+	(*ElectraAttestation)(nil),             // 13: sf.beacon.type.v1.ElectraAttestation
+	(*Deposit)(nil),                        // 14: sf.beacon.type.v1.Deposit
+	(*SignedVoluntaryExit)(nil),            // 15: sf.beacon.type.v1.SignedVoluntaryExit
+	(*SyncAggregate)(nil),                  // 16: sf.beacon.type.v1.SyncAggregate
+	(*BellatrixExecutionPayload)(nil),      // 17: sf.beacon.type.v1.BellatrixExecutionPayload
+	(*CapellaExecutionPayload)(nil),        // 18: sf.beacon.type.v1.CapellaExecutionPayload
+	(*DenebExecutionPayload)(nil),          // 19: sf.beacon.type.v1.DenebExecutionPayload
+	(*SignedBLSToExecutionChange)(nil),     // 20: sf.beacon.type.v1.SignedBLSToExecutionChange
+	(*BLSToExecutionChange)(nil),           // 21: sf.beacon.type.v1.BLSToExecutionChange
+	(*Withdrawal)(nil),                     // 22: sf.beacon.type.v1.Withdrawal
+	(*VoluntaryExit)(nil),                  // 23: sf.beacon.type.v1.VoluntaryExit
+	(*DepositData)(nil),                    // 24: sf.beacon.type.v1.DepositData
+	(*IndexedAttestation)(nil),             // 25: sf.beacon.type.v1.IndexedAttestation
+	(*AttestationData)(nil),                // 26: sf.beacon.type.v1.AttestationData
+	(*Checkpoint)(nil),                     // 27: sf.beacon.type.v1.Checkpoint
+	(*SignedBeaconBlockHeader)(nil),        // 28: sf.beacon.type.v1.SignedBeaconBlockHeader
+	(*BeaconBlockHeader)(nil),              // 29: sf.beacon.type.v1.BeaconBlockHeader
+	(*Blob)(nil),                           // 30: sf.beacon.type.v1.Blob
+	(*ExecutionRequest)(nil),               // 31: sf.beacon.type.v1.ExecutionRequest
+	(*DepositRequest)(nil),                 // 32: sf.beacon.type.v1.DepositRequest
+	(*WithdrawalRequest)(nil),              // 33: sf.beacon.type.v1.WithdrawalRequest
+	(*ConsolidationRequest)(nil),           // 34: sf.beacon.type.v1.ConsolidationRequest
+	(*BuilderDepositRequest)(nil),          // 35: sf.beacon.type.v1.BuilderDepositRequest
+	(*BuilderExitRequest)(nil),             // 36: sf.beacon.type.v1.BuilderExitRequest
+	(*SignedExecutionPayloadBid)(nil),      // 37: sf.beacon.type.v1.SignedExecutionPayloadBid
+	(*ExecutionPayloadBid)(nil),            // 38: sf.beacon.type.v1.ExecutionPayloadBid
+	(*PayloadAttestation)(nil),             // 39: sf.beacon.type.v1.PayloadAttestation
+	(*PayloadAttestationData)(nil),         // 40: sf.beacon.type.v1.PayloadAttestationData
+	(*SignedExecutionPayloadEnvelope)(nil), // 41: sf.beacon.type.v1.SignedExecutionPayloadEnvelope
+	(*ExecutionPayloadEnvelope)(nil),       // 42: sf.beacon.type.v1.ExecutionPayloadEnvelope
+	(*GloasExecutionPayload)(nil),          // 43: sf.beacon.type.v1.GloasExecutionPayload
+	(*timestamppb.Timestamp)(nil),          // 44: google.protobuf.Timestamp
 }
 var file_sf_beacon_type_v1_type_proto_depIdxs = []int32{
-	0,  // 0: sf.beacon.type.v1.Block.spec:type_name -> sf.beacon.type.v1.Spec
-	2,  // 1: sf.beacon.type.v1.Block.phase0:type_name -> sf.beacon.type.v1.Phase0Body
-	3,  // 2: sf.beacon.type.v1.Block.altair:type_name -> sf.beacon.type.v1.AltairBody
-	4,  // 3: sf.beacon.type.v1.Block.bellatrix:type_name -> sf.beacon.type.v1.BellatrixBody
-	5,  // 4: sf.beacon.type.v1.Block.capella:type_name -> sf.beacon.type.v1.CapellaBody
-	6,  // 5: sf.beacon.type.v1.Block.deneb:type_name -> sf.beacon.type.v1.DenebBody
-	7,  // 6: sf.beacon.type.v1.Block.electra:type_name -> sf.beacon.type.v1.ElectraBody
-	7,  // 7: sf.beacon.type.v1.Block.fusaka:type_name -> sf.beacon.type.v1.ElectraBody
-	34, // 8: sf.beacon.type.v1.Block.timestamp:type_name -> google.protobuf.Timestamp
-	8,  // 9: sf.beacon.type.v1.Phase0Body.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 10: sf.beacon.type.v1.Phase0Body.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 11: sf.beacon.type.v1.Phase0Body.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	11, // 12: sf.beacon.type.v1.Phase0Body.attestations:type_name -> sf.beacon.type.v1.Attestation
-	13, // 13: sf.beacon.type.v1.Phase0Body.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 14: sf.beacon.type.v1.Phase0Body.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	8,  // 15: sf.beacon.type.v1.AltairBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 16: sf.beacon.type.v1.AltairBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 17: sf.beacon.type.v1.AltairBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	11, // 18: sf.beacon.type.v1.AltairBody.attestations:type_name -> sf.beacon.type.v1.Attestation
-	13, // 19: sf.beacon.type.v1.AltairBody.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 20: sf.beacon.type.v1.AltairBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	15, // 21: sf.beacon.type.v1.AltairBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
-	8,  // 22: sf.beacon.type.v1.BellatrixBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 23: sf.beacon.type.v1.BellatrixBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 24: sf.beacon.type.v1.BellatrixBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	11, // 25: sf.beacon.type.v1.BellatrixBody.attestations:type_name -> sf.beacon.type.v1.Attestation
-	13, // 26: sf.beacon.type.v1.BellatrixBody.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 27: sf.beacon.type.v1.BellatrixBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	15, // 28: sf.beacon.type.v1.BellatrixBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
-	16, // 29: sf.beacon.type.v1.BellatrixBody.execution_payload:type_name -> sf.beacon.type.v1.BellatrixExecutionPayload
-	8,  // 30: sf.beacon.type.v1.CapellaBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 31: sf.beacon.type.v1.CapellaBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 32: sf.beacon.type.v1.CapellaBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	11, // 33: sf.beacon.type.v1.CapellaBody.attestations:type_name -> sf.beacon.type.v1.Attestation
-	13, // 34: sf.beacon.type.v1.CapellaBody.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 35: sf.beacon.type.v1.CapellaBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	15, // 36: sf.beacon.type.v1.CapellaBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
-	17, // 37: sf.beacon.type.v1.CapellaBody.execution_payload:type_name -> sf.beacon.type.v1.CapellaExecutionPayload
-	8,  // 38: sf.beacon.type.v1.DenebBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 39: sf.beacon.type.v1.DenebBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 40: sf.beacon.type.v1.DenebBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	11, // 41: sf.beacon.type.v1.DenebBody.attestations:type_name -> sf.beacon.type.v1.Attestation
-	13, // 42: sf.beacon.type.v1.DenebBody.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 43: sf.beacon.type.v1.DenebBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	15, // 44: sf.beacon.type.v1.DenebBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
-	18, // 45: sf.beacon.type.v1.DenebBody.execution_payload:type_name -> sf.beacon.type.v1.DenebExecutionPayload
-	19, // 46: sf.beacon.type.v1.DenebBody.bls_to_execution_changes:type_name -> sf.beacon.type.v1.SignedBLSToExecutionChange
-	29, // 47: sf.beacon.type.v1.DenebBody.embedded_blobs:type_name -> sf.beacon.type.v1.Blob
-	8,  // 48: sf.beacon.type.v1.ElectraBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
-	9,  // 49: sf.beacon.type.v1.ElectraBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
-	10, // 50: sf.beacon.type.v1.ElectraBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
-	12, // 51: sf.beacon.type.v1.ElectraBody.attestations:type_name -> sf.beacon.type.v1.ElectraAttestation
-	13, // 52: sf.beacon.type.v1.ElectraBody.deposits:type_name -> sf.beacon.type.v1.Deposit
-	14, // 53: sf.beacon.type.v1.ElectraBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
-	15, // 54: sf.beacon.type.v1.ElectraBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
-	18, // 55: sf.beacon.type.v1.ElectraBody.execution_payload:type_name -> sf.beacon.type.v1.DenebExecutionPayload
-	19, // 56: sf.beacon.type.v1.ElectraBody.bls_to_execution_changes:type_name -> sf.beacon.type.v1.SignedBLSToExecutionChange
-	30, // 57: sf.beacon.type.v1.ElectraBody.execution_requests:type_name -> sf.beacon.type.v1.ExecutionRequest
-	29, // 58: sf.beacon.type.v1.ElectraBody.embedded_blobs:type_name -> sf.beacon.type.v1.Blob
-	27, // 59: sf.beacon.type.v1.ProposerSlashing.signed_header_1:type_name -> sf.beacon.type.v1.SignedBeaconBlockHeader
-	27, // 60: sf.beacon.type.v1.ProposerSlashing.signed_header_2:type_name -> sf.beacon.type.v1.SignedBeaconBlockHeader
-	24, // 61: sf.beacon.type.v1.AttesterSlashing.attestation_1:type_name -> sf.beacon.type.v1.IndexedAttestation
-	24, // 62: sf.beacon.type.v1.AttesterSlashing.attestation_2:type_name -> sf.beacon.type.v1.IndexedAttestation
-	25, // 63: sf.beacon.type.v1.Attestation.data:type_name -> sf.beacon.type.v1.AttestationData
-	25, // 64: sf.beacon.type.v1.ElectraAttestation.data:type_name -> sf.beacon.type.v1.AttestationData
-	23, // 65: sf.beacon.type.v1.Deposit.data:type_name -> sf.beacon.type.v1.DepositData
-	22, // 66: sf.beacon.type.v1.SignedVoluntaryExit.message:type_name -> sf.beacon.type.v1.VoluntaryExit
-	34, // 67: sf.beacon.type.v1.BellatrixExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
-	34, // 68: sf.beacon.type.v1.CapellaExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
-	21, // 69: sf.beacon.type.v1.CapellaExecutionPayload.withdrawals:type_name -> sf.beacon.type.v1.Withdrawal
-	34, // 70: sf.beacon.type.v1.DenebExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
-	21, // 71: sf.beacon.type.v1.DenebExecutionPayload.withdrawals:type_name -> sf.beacon.type.v1.Withdrawal
-	20, // 72: sf.beacon.type.v1.SignedBLSToExecutionChange.message:type_name -> sf.beacon.type.v1.BLSToExecutionChange
-	25, // 73: sf.beacon.type.v1.IndexedAttestation.data:type_name -> sf.beacon.type.v1.AttestationData
-	26, // 74: sf.beacon.type.v1.AttestationData.source:type_name -> sf.beacon.type.v1.Checkpoint
-	26, // 75: sf.beacon.type.v1.AttestationData.target:type_name -> sf.beacon.type.v1.Checkpoint
-	28, // 76: sf.beacon.type.v1.SignedBeaconBlockHeader.message:type_name -> sf.beacon.type.v1.BeaconBlockHeader
-	31, // 77: sf.beacon.type.v1.ExecutionRequest.deposits:type_name -> sf.beacon.type.v1.DepositRequest
-	32, // 78: sf.beacon.type.v1.ExecutionRequest.withdrawals:type_name -> sf.beacon.type.v1.WithdrawalRequest
-	33, // 79: sf.beacon.type.v1.ExecutionRequest.consolidations:type_name -> sf.beacon.type.v1.ConsolidationRequest
-	80, // [80:80] is the sub-list for method output_type
-	80, // [80:80] is the sub-list for method input_type
-	80, // [80:80] is the sub-list for extension type_name
-	80, // [80:80] is the sub-list for extension extendee
-	0,  // [0:80] is the sub-list for field type_name
+	0,   // 0: sf.beacon.type.v1.Block.spec:type_name -> sf.beacon.type.v1.Spec
+	2,   // 1: sf.beacon.type.v1.Block.phase0:type_name -> sf.beacon.type.v1.Phase0Body
+	3,   // 2: sf.beacon.type.v1.Block.altair:type_name -> sf.beacon.type.v1.AltairBody
+	4,   // 3: sf.beacon.type.v1.Block.bellatrix:type_name -> sf.beacon.type.v1.BellatrixBody
+	5,   // 4: sf.beacon.type.v1.Block.capella:type_name -> sf.beacon.type.v1.CapellaBody
+	6,   // 5: sf.beacon.type.v1.Block.deneb:type_name -> sf.beacon.type.v1.DenebBody
+	7,   // 6: sf.beacon.type.v1.Block.electra:type_name -> sf.beacon.type.v1.ElectraBody
+	7,   // 7: sf.beacon.type.v1.Block.fusaka:type_name -> sf.beacon.type.v1.ElectraBody
+	8,   // 8: sf.beacon.type.v1.Block.gloas:type_name -> sf.beacon.type.v1.GloasBody
+	44,  // 9: sf.beacon.type.v1.Block.timestamp:type_name -> google.protobuf.Timestamp
+	9,   // 10: sf.beacon.type.v1.Phase0Body.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 11: sf.beacon.type.v1.Phase0Body.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 12: sf.beacon.type.v1.Phase0Body.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	12,  // 13: sf.beacon.type.v1.Phase0Body.attestations:type_name -> sf.beacon.type.v1.Attestation
+	14,  // 14: sf.beacon.type.v1.Phase0Body.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 15: sf.beacon.type.v1.Phase0Body.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	9,   // 16: sf.beacon.type.v1.AltairBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 17: sf.beacon.type.v1.AltairBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 18: sf.beacon.type.v1.AltairBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	12,  // 19: sf.beacon.type.v1.AltairBody.attestations:type_name -> sf.beacon.type.v1.Attestation
+	14,  // 20: sf.beacon.type.v1.AltairBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 21: sf.beacon.type.v1.AltairBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 22: sf.beacon.type.v1.AltairBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	9,   // 23: sf.beacon.type.v1.BellatrixBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 24: sf.beacon.type.v1.BellatrixBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 25: sf.beacon.type.v1.BellatrixBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	12,  // 26: sf.beacon.type.v1.BellatrixBody.attestations:type_name -> sf.beacon.type.v1.Attestation
+	14,  // 27: sf.beacon.type.v1.BellatrixBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 28: sf.beacon.type.v1.BellatrixBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 29: sf.beacon.type.v1.BellatrixBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	17,  // 30: sf.beacon.type.v1.BellatrixBody.execution_payload:type_name -> sf.beacon.type.v1.BellatrixExecutionPayload
+	9,   // 31: sf.beacon.type.v1.CapellaBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 32: sf.beacon.type.v1.CapellaBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 33: sf.beacon.type.v1.CapellaBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	12,  // 34: sf.beacon.type.v1.CapellaBody.attestations:type_name -> sf.beacon.type.v1.Attestation
+	14,  // 35: sf.beacon.type.v1.CapellaBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 36: sf.beacon.type.v1.CapellaBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 37: sf.beacon.type.v1.CapellaBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	18,  // 38: sf.beacon.type.v1.CapellaBody.execution_payload:type_name -> sf.beacon.type.v1.CapellaExecutionPayload
+	9,   // 39: sf.beacon.type.v1.DenebBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 40: sf.beacon.type.v1.DenebBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 41: sf.beacon.type.v1.DenebBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	12,  // 42: sf.beacon.type.v1.DenebBody.attestations:type_name -> sf.beacon.type.v1.Attestation
+	14,  // 43: sf.beacon.type.v1.DenebBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 44: sf.beacon.type.v1.DenebBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 45: sf.beacon.type.v1.DenebBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	19,  // 46: sf.beacon.type.v1.DenebBody.execution_payload:type_name -> sf.beacon.type.v1.DenebExecutionPayload
+	20,  // 47: sf.beacon.type.v1.DenebBody.bls_to_execution_changes:type_name -> sf.beacon.type.v1.SignedBLSToExecutionChange
+	30,  // 48: sf.beacon.type.v1.DenebBody.embedded_blobs:type_name -> sf.beacon.type.v1.Blob
+	9,   // 49: sf.beacon.type.v1.ElectraBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 50: sf.beacon.type.v1.ElectraBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 51: sf.beacon.type.v1.ElectraBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	13,  // 52: sf.beacon.type.v1.ElectraBody.attestations:type_name -> sf.beacon.type.v1.ElectraAttestation
+	14,  // 53: sf.beacon.type.v1.ElectraBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 54: sf.beacon.type.v1.ElectraBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 55: sf.beacon.type.v1.ElectraBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	19,  // 56: sf.beacon.type.v1.ElectraBody.execution_payload:type_name -> sf.beacon.type.v1.DenebExecutionPayload
+	20,  // 57: sf.beacon.type.v1.ElectraBody.bls_to_execution_changes:type_name -> sf.beacon.type.v1.SignedBLSToExecutionChange
+	31,  // 58: sf.beacon.type.v1.ElectraBody.execution_requests:type_name -> sf.beacon.type.v1.ExecutionRequest
+	30,  // 59: sf.beacon.type.v1.ElectraBody.embedded_blobs:type_name -> sf.beacon.type.v1.Blob
+	9,   // 60: sf.beacon.type.v1.GloasBody.eth1_data:type_name -> sf.beacon.type.v1.Eth1Data
+	10,  // 61: sf.beacon.type.v1.GloasBody.proposer_slashings:type_name -> sf.beacon.type.v1.ProposerSlashing
+	11,  // 62: sf.beacon.type.v1.GloasBody.attester_slashings:type_name -> sf.beacon.type.v1.AttesterSlashing
+	13,  // 63: sf.beacon.type.v1.GloasBody.attestations:type_name -> sf.beacon.type.v1.ElectraAttestation
+	14,  // 64: sf.beacon.type.v1.GloasBody.deposits:type_name -> sf.beacon.type.v1.Deposit
+	15,  // 65: sf.beacon.type.v1.GloasBody.voluntary_exits:type_name -> sf.beacon.type.v1.SignedVoluntaryExit
+	16,  // 66: sf.beacon.type.v1.GloasBody.sync_aggregate:type_name -> sf.beacon.type.v1.SyncAggregate
+	20,  // 67: sf.beacon.type.v1.GloasBody.bls_to_execution_changes:type_name -> sf.beacon.type.v1.SignedBLSToExecutionChange
+	37,  // 68: sf.beacon.type.v1.GloasBody.signed_execution_payload_bid:type_name -> sf.beacon.type.v1.SignedExecutionPayloadBid
+	39,  // 69: sf.beacon.type.v1.GloasBody.payload_attestations:type_name -> sf.beacon.type.v1.PayloadAttestation
+	31,  // 70: sf.beacon.type.v1.GloasBody.parent_execution_requests:type_name -> sf.beacon.type.v1.ExecutionRequest
+	41,  // 71: sf.beacon.type.v1.GloasBody.execution_payload_envelope:type_name -> sf.beacon.type.v1.SignedExecutionPayloadEnvelope
+	30,  // 72: sf.beacon.type.v1.GloasBody.embedded_blobs:type_name -> sf.beacon.type.v1.Blob
+	28,  // 73: sf.beacon.type.v1.ProposerSlashing.signed_header_1:type_name -> sf.beacon.type.v1.SignedBeaconBlockHeader
+	28,  // 74: sf.beacon.type.v1.ProposerSlashing.signed_header_2:type_name -> sf.beacon.type.v1.SignedBeaconBlockHeader
+	25,  // 75: sf.beacon.type.v1.AttesterSlashing.attestation_1:type_name -> sf.beacon.type.v1.IndexedAttestation
+	25,  // 76: sf.beacon.type.v1.AttesterSlashing.attestation_2:type_name -> sf.beacon.type.v1.IndexedAttestation
+	26,  // 77: sf.beacon.type.v1.Attestation.data:type_name -> sf.beacon.type.v1.AttestationData
+	26,  // 78: sf.beacon.type.v1.ElectraAttestation.data:type_name -> sf.beacon.type.v1.AttestationData
+	24,  // 79: sf.beacon.type.v1.Deposit.data:type_name -> sf.beacon.type.v1.DepositData
+	23,  // 80: sf.beacon.type.v1.SignedVoluntaryExit.message:type_name -> sf.beacon.type.v1.VoluntaryExit
+	44,  // 81: sf.beacon.type.v1.BellatrixExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
+	44,  // 82: sf.beacon.type.v1.CapellaExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
+	22,  // 83: sf.beacon.type.v1.CapellaExecutionPayload.withdrawals:type_name -> sf.beacon.type.v1.Withdrawal
+	44,  // 84: sf.beacon.type.v1.DenebExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
+	22,  // 85: sf.beacon.type.v1.DenebExecutionPayload.withdrawals:type_name -> sf.beacon.type.v1.Withdrawal
+	21,  // 86: sf.beacon.type.v1.SignedBLSToExecutionChange.message:type_name -> sf.beacon.type.v1.BLSToExecutionChange
+	26,  // 87: sf.beacon.type.v1.IndexedAttestation.data:type_name -> sf.beacon.type.v1.AttestationData
+	27,  // 88: sf.beacon.type.v1.AttestationData.source:type_name -> sf.beacon.type.v1.Checkpoint
+	27,  // 89: sf.beacon.type.v1.AttestationData.target:type_name -> sf.beacon.type.v1.Checkpoint
+	29,  // 90: sf.beacon.type.v1.SignedBeaconBlockHeader.message:type_name -> sf.beacon.type.v1.BeaconBlockHeader
+	32,  // 91: sf.beacon.type.v1.ExecutionRequest.deposits:type_name -> sf.beacon.type.v1.DepositRequest
+	33,  // 92: sf.beacon.type.v1.ExecutionRequest.withdrawals:type_name -> sf.beacon.type.v1.WithdrawalRequest
+	34,  // 93: sf.beacon.type.v1.ExecutionRequest.consolidations:type_name -> sf.beacon.type.v1.ConsolidationRequest
+	35,  // 94: sf.beacon.type.v1.ExecutionRequest.builder_deposits:type_name -> sf.beacon.type.v1.BuilderDepositRequest
+	36,  // 95: sf.beacon.type.v1.ExecutionRequest.builder_exits:type_name -> sf.beacon.type.v1.BuilderExitRequest
+	38,  // 96: sf.beacon.type.v1.SignedExecutionPayloadBid.message:type_name -> sf.beacon.type.v1.ExecutionPayloadBid
+	40,  // 97: sf.beacon.type.v1.PayloadAttestation.data:type_name -> sf.beacon.type.v1.PayloadAttestationData
+	42,  // 98: sf.beacon.type.v1.SignedExecutionPayloadEnvelope.message:type_name -> sf.beacon.type.v1.ExecutionPayloadEnvelope
+	43,  // 99: sf.beacon.type.v1.ExecutionPayloadEnvelope.payload:type_name -> sf.beacon.type.v1.GloasExecutionPayload
+	31,  // 100: sf.beacon.type.v1.ExecutionPayloadEnvelope.execution_requests:type_name -> sf.beacon.type.v1.ExecutionRequest
+	44,  // 101: sf.beacon.type.v1.GloasExecutionPayload.timestamp:type_name -> google.protobuf.Timestamp
+	22,  // 102: sf.beacon.type.v1.GloasExecutionPayload.withdrawals:type_name -> sf.beacon.type.v1.Withdrawal
+	103, // [103:103] is the sub-list for method output_type
+	103, // [103:103] is the sub-list for method input_type
+	103, // [103:103] is the sub-list for extension type_name
+	103, // [103:103] is the sub-list for extension extendee
+	0,   // [0:103] is the sub-list for field type_name
 }
 
 func init() { file_sf_beacon_type_v1_type_proto_init() }
@@ -3375,6 +4452,7 @@ func file_sf_beacon_type_v1_type_proto_init() {
 		(*Block_Deneb)(nil),
 		(*Block_Electra)(nil),
 		(*Block_Fusaka)(nil),
+		(*Block_Gloas)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3382,7 +4460,7 @@ func file_sf_beacon_type_v1_type_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sf_beacon_type_v1_type_proto_rawDesc), len(file_sf_beacon_type_v1_type_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   33,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

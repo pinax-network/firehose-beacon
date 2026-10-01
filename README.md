@@ -5,7 +5,7 @@
 This is the poller implementation to create Firehose blocks from Beacon chains. It enables both 
 [Firehose](https://firehose.streamingfast.io/introduction/firehose-overview)
 and [Substreams](https://substreams.streamingfast.io) on Beacon chains. It supports all current specs (Phase0, Altair, Bellatrix, Capella, Deneb, 
-Electra and Fusaka). 
+Electra, Fusaka and Gloas). 
 Since the Deneb spec, we embed blobs into the firehose blocks.
 
 The block proto can be found [here](https://github.com/pinax-network/firehose-beacon/blob/main/proto/sf/beacon/type/v1/type.proto).

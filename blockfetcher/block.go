@@ -11,6 +11,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
@@ -18,7 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
+func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar, envelope *gloas.SignedExecutionPayloadEnvelope, blobs []*deneb.Blob) (*pbbstream.Block, error) {
 
 	libNum := finalizedSlot
 	if finalizedSlot > slot {
@@ -89,6 +90,13 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 		beaconBlock.Body = &pbbeacon.Block_Fusaka{Fusaka: toElectraBody(signedBlock.Fulu, blobSidecars)}
 		beaconBlock.Signature = signedBlock.Fulu.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetFusaka().ExecutionPayload.Timestamp
+	case spec.DataVersionGloas:
+		beaconBlock.Spec = pbbeacon.Spec_GLOAS
+		beaconBlock.Body = &pbbeacon.Block_Gloas{Gloas: toGloasBody(signedBlock.Gloas, envelope, blobs)}
+		beaconBlock.Signature = signedBlock.Gloas.Signature[:]
+		// the slot time can't come from the execution payload anymore, as it is not part of the block and might be
+		// missing altogether
+		beaconBlock.Timestamp = calculateBlockTimestamp(genesisTimestamp, blockTime, beaconBlock.Slot)
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
