@@ -12,9 +12,10 @@ import (
 
 	"github.com/attestantio/go-eth2-client/http"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	"github.com/rs/zerolog"
 	"go.uber.org/zap/zaptest"
+
+	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 )
 
 // TestGloasFetchAgainstBeaconNode fetches the most recent slots from a beacon node past the Gloas fork and checks the

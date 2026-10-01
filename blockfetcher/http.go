@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -93,7 +94,7 @@ func (f *HttpFetcher) fetchBlockTimes(httpClient eth2client.Service) error {
 
 	secondsPerSlot, ok := chainSpec["SECONDS_PER_SLOT"].(time.Duration)
 	if !ok || secondsPerSlot <= 0 {
-		return fmt.Errorf("missing SECONDS_PER_SLOT in spec")
+		return errors.New("missing SECONDS_PER_SLOT in spec")
 	}
 	f.blockTime = uint64(secondsPerSlot.Seconds())
 	f.logger.Info("detected block time", zap.Uint64("block_time", f.blockTime))
@@ -259,8 +260,7 @@ func (f *HttpFetcher) fetchBlockHeaderAtSlot(ctx context.Context, httpClient eth
 			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
 			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
 			// we received the head header before from Lighthouse, can we assume that it also is able to return this one?
-			switch apiErr.StatusCode {
-			case 404:
+			if apiErr.StatusCode == http.StatusNotFound {
 				f.logger.Info("received a 404, marking slot as skipped", zap.Uint64("slot", slot))
 				return nil, true, nil
 			}
@@ -301,7 +301,7 @@ func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, httpClient eth2clien
 		return blockHeaderResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch block header, no BeaconBlockHeadersProvider available")
+	return nil, errors.New("failed to fetch block header, no BeaconBlockHeadersProvider available")
 }
 
 func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, httpClient eth2client.Service, block string) (*spec.VersionedSignedBeaconBlock, error) {
@@ -314,7 +314,7 @@ func (f *HttpFetcher) fetchSignedBlock(ctx context.Context, httpClient eth2clien
 		return signedBlockResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch signed block, no SignedBeaconBlockProvider available")
+	return nil, errors.New("failed to fetch signed block, no SignedBeaconBlockProvider available")
 }
 
 func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, httpClient eth2client.Service, block string) ([]*deneb.BlobSidecar, error) {
@@ -327,7 +327,7 @@ func (f *HttpFetcher) fetchBlobSidecars(ctx context.Context, httpClient eth2clie
 		return blobSidecarResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch blob sidecar, no BlobSidecarsProvider available")
+	return nil, errors.New("failed to fetch blob sidecar, no BlobSidecarsProvider available")
 }
 
 // fetchGloasPayload returns the execution payload envelope and blobs of a Gloas block, or nil for both if the
@@ -355,7 +355,7 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 		return nil, nil, fmt.Errorf("fetching execution payload envelope: %w", err)
 	}
 	if envelope.Message == nil || envelope.Message.Payload == nil {
-		return nil, nil, fmt.Errorf("execution payload envelope is missing its payload")
+		return nil, nil, errors.New("execution payload envelope is missing its payload")
 	}
 	if envelope.Message.BeaconBlockRoot != root {
 		return nil, nil, fmt.Errorf("execution payload envelope is for beacon block %s, expected %s", envelope.Message.BeaconBlockRoot, root)
@@ -396,7 +396,7 @@ const missingBlobsHint = ", if the beacon node has pruned them already you need 
 // isIgnorableMissingBlobsError reports whether a blob fetch error is a 404 that --ignore-missing-blobs allows to skip.
 func (f *HttpFetcher) isIgnorableMissingBlobsError(err error) bool {
 	var apiErr *api.Error
-	return f.ignoreMissingBlobs && errors.As(err, &apiErr) && apiErr.StatusCode == 404
+	return f.ignoreMissingBlobs && errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 // isGloasPayloadCanonical looks up the next canonical block after the given slot and checks whether its bid builds on
@@ -411,7 +411,7 @@ func (f *HttpFetcher) isGloasPayloadCanonical(ctx context.Context, httpClient et
 			child, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(childSlot, 10))
 			if err != nil {
 				var apiErr *api.Error
-				if errors.As(err, &apiErr) && apiErr.StatusCode == 404 {
+				if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
 					// skipped slot
 					continue
 				}
@@ -475,13 +475,13 @@ func (f *HttpFetcher) fetchExecutionPayloadEnvelope(ctx context.Context, httpCli
 			return nil, err
 		}
 		if envelopeResponse.Data == nil || envelopeResponse.Data.Gloas == nil {
-			return nil, fmt.Errorf("empty execution payload envelope response")
+			return nil, errors.New("empty execution payload envelope response")
 		}
 
 		return envelopeResponse.Data.Gloas, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch execution payload envelope, no ExecutionPayloadProvider available")
+	return nil, errors.New("failed to fetch execution payload envelope, no ExecutionPayloadProvider available")
 }
 
 func (f *HttpFetcher) fetchBlobs(ctx context.Context, httpClient eth2client.Service, block string) ([]*deneb.Blob, error) {
@@ -494,7 +494,7 @@ func (f *HttpFetcher) fetchBlobs(ctx context.Context, httpClient eth2client.Serv
 		return blobsResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch blobs, no BlobsProvider available")
+	return nil, errors.New("failed to fetch blobs, no BlobsProvider available")
 }
 
 func (f *HttpFetcher) fetchSpec(ctx context.Context, httpClient eth2client.Service) (map[string]any, error) {
@@ -507,7 +507,7 @@ func (f *HttpFetcher) fetchSpec(ctx context.Context, httpClient eth2client.Servi
 		return specResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch spec, no SpecProvider available")
+	return nil, errors.New("failed to fetch spec, no SpecProvider available")
 }
 
 func (f *HttpFetcher) fetchGenesis(ctx context.Context, httpClient eth2client.Service) (*v1.Genesis, error) {
@@ -520,5 +520,5 @@ func (f *HttpFetcher) fetchGenesis(ctx context.Context, httpClient eth2client.Se
 		return genesisResponse.Data, nil
 	}
 
-	return nil, fmt.Errorf("failed to fetch genesis, no GenesisProvider available")
+	return nil, errors.New("failed to fetch genesis, no GenesisProvider available")
 }

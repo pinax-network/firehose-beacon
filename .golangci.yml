@@ -1,0 +1,61 @@
+# golangci-lint v2 configuration, see https://golangci-lint.run/usage/configuration/
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck and unused
+  default: standard
+  enable:
+    - copyloopvar # loop variable copies that are no longer needed since Go 1.22
+    - errname # sentinel errors are prefixed with Err, error types suffixed with Error
+    - errorlint # errors are compared and wrapped with errors.Is/As and %w
+    - exhaustive # switches over enums (e.g. spec.DataVersion) cover all values or have a default
+    - gocritic # opinionated diagnostics, style and performance checks
+    - intrange # for i := range n instead of classic loops
+    - misspell # typos in comments and strings
+    - nilerr # returning nil although err is not nil, and vice versa
+    - nolintlint # nolint directives are specific and explain themselves
+    - perfsprint # fmt.Sprintf where strconv or concatenation is cheaper
+    - prealloc # slices that can be preallocated
+    - revive # the golint successor
+    - unconvert # unnecessary type conversions
+    - unparam # unused function parameters and always-nil results
+    - usestdlibvars # http.MethodGet etc. instead of literals
+    - wastedassign # assignments that are never read
+  settings:
+    errcheck:
+      exclude-functions:
+        - (hash.Hash).Write
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: var-naming
+          disabled: true # the exported HttpFetcher/NewHttp names are established
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+      - std-error-handling
+    paths:
+      - pb
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pinax-network/firehose-beacon
+  exclusions:
+    paths:
+      - pb

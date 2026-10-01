@@ -9,8 +9,9 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 )
 
 // gloasBlockID returns the Firehose block ID of a Gloas block. Whether a block's execution payload became canonical is
@@ -180,7 +181,7 @@ func gloasExecutionPayloadToProto(executionPayload *gloas.ExecutionPayload) *pbb
 		GasLimit:        executionPayload.GasLimit,
 		GasUsed:         executionPayload.GasUsed,
 		Timestamp:       timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:       executionPayload.ExtraData[:],
+		ExtraData:       executionPayload.ExtraData,
 		BaseFeePerGas:   executionPayload.BaseFeePerGas.Bytes(),
 		BlockHash:       executionPayload.BlockHash[:],
 		Transactions:    transactionsToProto(executionPayload.Transactions),

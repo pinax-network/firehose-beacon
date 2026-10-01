@@ -13,10 +13,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 )
 
 func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, id, parentID string, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar, envelope *gloas.SignedExecutionPayloadEnvelope, blobs []*deneb.Blob) (*pbbstream.Block, error) {
@@ -370,7 +371,7 @@ func bellatrixExecutionPayloadToProto(executionPayload *bellatrix.ExecutionPaylo
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
@@ -389,7 +390,7 @@ func capellaExecutionPayloadToProto(executionPayload *capella.ExecutionPayload) 
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
@@ -409,7 +410,7 @@ func denebExecutionPayloadToProto(executionPayload *deneb.ExecutionPayload) *pbb
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas.Bytes(),
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),

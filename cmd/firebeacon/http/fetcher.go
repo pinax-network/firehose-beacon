@@ -7,7 +7,6 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/http"
-	"github.com/pinax-network/firehose-beacon/blockfetcher"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/streamingfast/cli/sflags"
@@ -16,6 +15,8 @@ import (
 	"github.com/streamingfast/firehose-core/rpc"
 	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
+
+	"github.com/pinax-network/firehose-beacon/blockfetcher"
 )
 
 func NewFetchCmd(logger *zap.Logger, tracer logging.Tracer) *cobra.Command {
