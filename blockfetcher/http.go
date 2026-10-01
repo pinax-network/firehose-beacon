@@ -254,8 +254,7 @@ func (f *HttpFetcher) fetchBlockHeaderAtSlot(ctx context.Context, httpClient eth
 	blockHeader, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(slot, 10))
 	if err != nil {
 		f.logger.Warn("failed to fetch block header", zap.Error(err))
-		var apiErr *api.Error
-		if errors.As(err, &apiErr) {
+		if apiErr, ok := errors.AsType[*api.Error](err); ok {
 			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
 			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
 			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
