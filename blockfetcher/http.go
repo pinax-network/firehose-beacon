@@ -168,30 +168,21 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot), zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot))
 
-	signedBlock, fromCache := f.takeCachedSignedBlock(requestedSlot)
+	// the header tells us the root of the block currently at the requested slot (the signed block does not carry its
+	// root), and whether the slot was skipped
+	blockHeader, skip, err := f.fetchBlockHeaderAtSlot(ctx, httpClient, requestedSlot)
+	if err != nil || skip {
+		return nil, skip, err
+	}
+
+	// the signed block is requested by the header's root rather than by slot, so that a reorg between the two requests
+	// cannot pair the header of one block with the body of another
+	signedBlock, fromCache := f.takeCachedSignedBlock(requestedSlot, blockHeader.Root)
 	if !fromCache {
-		signedBlock, skip, err = f.fetchSignedBlockAtSlot(ctx, httpClient, requestedSlot)
-		if err != nil || skip {
-			return nil, skip, err
-		}
-	}
-
-	// unfortunately, the signed block is missing the block root, so we need to request it separately here
-	blockHeader, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
-	if err != nil {
-		f.logger.Error("failed to fetch block header", zap.Error(err), zap.Uint64("slot", requestedSlot))
-		return nil, false, fmt.Errorf("fetching block header: %w", err)
-	}
-
-	// the cached block might have been reorged out since we looked it up, the header tells us the current one
-	if fromCache {
-		cachedRoot, err := signedBlock.Root()
-		if err != nil || cachedRoot != blockHeader.Root {
-			f.logger.Info("cached block does not match the current block at slot, requesting it again", zap.Uint64("slot", requestedSlot), zap.Stringer("cached_root", cachedRoot), zap.Stringer("root", blockHeader.Root), zap.Error(err))
-			signedBlock, skip, err = f.fetchSignedBlockAtSlot(ctx, httpClient, requestedSlot)
-			if err != nil || skip {
-				return nil, skip, err
-			}
+		signedBlock, err = f.fetchSignedBlock(ctx, httpClient, blockHeader.Root.String())
+		if err != nil {
+			f.logger.Error("failed to fetch signed block", zap.Error(err), zap.Uint64("slot", requestedSlot), zap.Stringer("root", blockHeader.Root))
+			return nil, false, fmt.Errorf("fetching signed block %s: %w", blockHeader.Root, err)
 		}
 	}
 
@@ -261,37 +252,45 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 	return block, false, nil
 }
 
-// fetchSignedBlockAtSlot fetches the signed block at the given slot, reporting a 404 as a skipped slot.
-func (f *HttpFetcher) fetchSignedBlockAtSlot(ctx context.Context, httpClient eth2client.Service, slot uint64) (block *spec.VersionedSignedBeaconBlock, skip bool, err error) {
-	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(slot, 10))
+// fetchBlockHeaderAtSlot fetches the block header at the given slot, reporting a 404 as a skipped slot.
+func (f *HttpFetcher) fetchBlockHeaderAtSlot(ctx context.Context, httpClient eth2client.Service, slot uint64) (header *v1.BeaconBlockHeader, skip bool, err error) {
+	blockHeader, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(slot, 10))
 	if err != nil {
-		f.logger.Warn("failed to fetch signed block", zap.Error(err))
+		f.logger.Warn("failed to fetch block header", zap.Error(err))
 		var apiErr *api.Error
 		if errors.As(err, &apiErr) {
 			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
 			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
 			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
-			// we received the header before from Lighthouse, can we assume that it also is able to return the signed block?
+			// we received the head header before from Lighthouse, can we assume that it also is able to return this one?
 			switch apiErr.StatusCode {
 			case 404:
 				f.logger.Info("received a 404, marking slot as skipped", zap.Uint64("slot", slot))
 				return nil, true, nil
 			}
 		}
-		f.logger.Error("failed to fetch signed block", zap.Error(err), zap.Uint64("slot", slot))
-		return nil, false, fmt.Errorf("fetching signed block: %w", err)
+		f.logger.Error("failed to fetch block header", zap.Error(err), zap.Uint64("slot", slot))
+		return nil, false, fmt.Errorf("fetching block header: %w", err)
 	}
 
-	return signedBlock, false, nil
+	return blockHeader, false, nil
 }
 
-// takeCachedSignedBlock returns the cached signed block if it is the one at the given slot, consuming the cache.
-func (f *HttpFetcher) takeCachedSignedBlock(slot uint64) (*spec.VersionedSignedBeaconBlock, bool) {
+// takeCachedSignedBlock returns the cached signed block if it is the block with the given root at the given slot,
+// consuming the cache. The cached block might have been reorged out since we looked it up, hence the root check.
+func (f *HttpFetcher) takeCachedSignedBlock(slot uint64, root phase0.Root) (*spec.VersionedSignedBeaconBlock, bool) {
 	cached := f.cachedSignedBlock
 	f.cachedSignedBlock = nil
 	if cached == nil || cached.slot != slot {
 		return nil, false
 	}
+
+	cachedRoot, err := cached.block.Root()
+	if err != nil || cachedRoot != root {
+		f.logger.Info("cached block does not match the current block at slot, requesting it again", zap.Uint64("slot", slot), zap.Stringer("cached_root", cachedRoot), zap.Stringer("root", root), zap.Error(err))
+		return nil, false
+	}
+
 	f.logger.Debug("using signed block from the cache", zap.Uint64("slot", slot))
 	return cached.block, true
 }
