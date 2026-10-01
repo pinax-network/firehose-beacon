@@ -41,6 +41,14 @@ type HttpFetcher struct {
 	ignoreMissingBlobs bool
 	// gloasForkSlot is the first slot of the Gloas fork, math.MaxUint64 if the chain has no Gloas fork scheduled
 	gloasForkSlot uint64
+	// cachedSignedBlock keeps the block the Gloas payload check had to look up for the next slot, so that fetching that
+	// slot afterwards does not request it a second time
+	cachedSignedBlock *cachedSignedBlock
+}
+
+type cachedSignedBlock struct {
+	slot  uint64
+	block *spec.VersionedSignedBeaconBlock
 }
 
 func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, ignoreMissingBlobs bool, logger *zap.Logger) (*HttpFetcher, error) {
@@ -61,11 +69,9 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 	return f, nil
 }
 
-// fetchBlockTimes tries to receive the block times by getting the genesis time, the current head slot number and the
-// current head timestamp (from the execution payload). This allows us to set the slot time in the Firehose blocks for
-// earlier specs that do not yet include the execution payload. In those cases, we'll set the block time to
-// genesisTime + (slotNumber * blockTime).
-// Note this works only if the chain has reached at least the Bellatrix spec.
+// fetchBlockTimes receives the genesis time and the slot duration from the beacon node. This allows us to set the slot
+// time in the Firehose blocks for specs that do not include the execution payload (before Bellatrix and from Gloas
+// onwards) to genesisTime + (slotNumber * blockTime). It also detects the Gloas fork slot.
 func (f *HttpFetcher) fetchBlockTimes(httpClient eth2client.Service) error {
 	f.logger.Info("initializing block fetcher")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -88,45 +94,12 @@ func (f *HttpFetcher) fetchBlockTimes(httpClient eth2client.Service) error {
 	}
 	f.logger.Info("detected gloas fork slot", zap.Uint64("gloas_fork_slot", f.gloasForkSlot))
 
-	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, HeadBlock)
-	if err != nil {
-		return fmt.Errorf("failed to fetch signed block: %w", err)
+	secondsPerSlot, ok := chainSpec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok || secondsPerSlot <= 0 {
+		return fmt.Errorf("missing SECONDS_PER_SLOT in spec")
 	}
-
-	headBlockTime := uint64(0)
-	switch signedBlock.Version {
-	case spec.DataVersionPhase0:
-	case spec.DataVersionAltair:
-	case spec.DataVersionBellatrix:
-		headBlockTime = signedBlock.Bellatrix.Message.Body.ExecutionPayload.Timestamp
-	case spec.DataVersionCapella:
-		headBlockTime = signedBlock.Capella.Message.Body.ExecutionPayload.Timestamp
-	case spec.DataVersionDeneb:
-		headBlockTime = signedBlock.Deneb.Message.Body.ExecutionPayload.Timestamp
-	case spec.DataVersionElectra:
-		headBlockTime = signedBlock.Electra.Message.Body.ExecutionPayload.Timestamp
-	case spec.DataVersionFulu:
-		headBlockTime = signedBlock.Fulu.Message.Body.ExecutionPayload.Timestamp
-	case spec.DataVersionGloas:
-		// Gloas blocks no longer carry the execution payload, take the slot duration from the spec instead
-		secondsPerSlot, ok := chainSpec["SECONDS_PER_SLOT"].(time.Duration)
-		if !ok || secondsPerSlot <= 0 {
-			return fmt.Errorf("missing SECONDS_PER_SLOT in spec")
-		}
-		f.blockTime = uint64(secondsPerSlot.Seconds())
-		return nil
-	default:
-		return fmt.Errorf("unimplemented spec: %q", signedBlock.String())
-	}
-
-	headSlot, err := signedBlock.Slot()
-	if err != nil {
-		return fmt.Errorf("failed to get slot from signed block: %w", err)
-	}
-
-	if headBlockTime > 0 {
-		f.blockTime = (headBlockTime - f.genesisTimestamp) / uint64(headSlot)
-	}
+	f.blockTime = uint64(secondsPerSlot.Seconds())
+	f.logger.Info("detected block time", zap.Uint64("block_time", f.blockTime))
 
 	return nil
 }
@@ -195,23 +168,12 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	f.logger.Info("fetching block", zap.Uint64("block_num", requestedSlot), zap.Uint64("latest_finalized_slot", f.latestFinalizedSlot), zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot))
 
-	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
-	if err != nil {
-		f.logger.Warn("failed to fetch signed block", zap.Error(err))
-		var apiErr *api.Error
-		if errors.As(err, &apiErr) {
-			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
-			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
-			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
-			// we received the header before from Lighthouse, can we assume that it also is able to return the signed block?
-			switch apiErr.StatusCode {
-			case 404:
-				f.logger.Info("received a 404, marking slot as skipped", zap.Uint64("slot", requestedSlot))
-				return nil, true, nil
-			}
+	signedBlock, fromCache := f.takeCachedSignedBlock(requestedSlot)
+	if !fromCache {
+		signedBlock, skip, err = f.fetchSignedBlockAtSlot(ctx, httpClient, requestedSlot)
+		if err != nil || skip {
+			return nil, skip, err
 		}
-		f.logger.Error("failed to fetch signed block", zap.Error(err), zap.Uint64("slot", requestedSlot))
-		return nil, false, fmt.Errorf("fetching signed block: %w", err)
 	}
 
 	// unfortunately, the signed block is missing the block root, so we need to request it separately here
@@ -219,6 +181,18 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 	if err != nil {
 		f.logger.Error("failed to fetch block header", zap.Error(err), zap.Uint64("slot", requestedSlot))
 		return nil, false, fmt.Errorf("fetching block header: %w", err)
+	}
+
+	// the cached block might have been reorged out since we looked it up, the header tells us the current one
+	if fromCache {
+		cachedRoot, err := signedBlock.Root()
+		if err != nil || cachedRoot != blockHeader.Root {
+			f.logger.Info("cached block does not match the current block at slot, requesting it again", zap.Uint64("slot", requestedSlot), zap.Stringer("cached_root", cachedRoot), zap.Stringer("root", blockHeader.Root), zap.Error(err))
+			signedBlock, skip, err = f.fetchSignedBlockAtSlot(ctx, httpClient, requestedSlot)
+			if err != nil || skip {
+				return nil, skip, err
+			}
+		}
 	}
 
 	// the block header also doesn't include the parent slot, so we are going to buffer all seen blocks to avoid sending
@@ -265,20 +239,13 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 		}
 	} else {
 		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
-	}
-	if err != nil {
-		var apiErr *api.Error
-		if errors.As(err, &apiErr) {
-			if apiErr.StatusCode == 404 && f.ignoreMissingBlobs {
-				f.logger.Error("failed to fetch blob sidecars, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
-				blobSidecars = []*deneb.BlobSidecar{}
-			} else {
-				f.logger.Error("failed to fetch blob sidecars, if Lighthouse has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error", zap.Error(err))
+		if err != nil {
+			if !f.isIgnorableMissingBlobsError(err) {
+				f.logger.Error("failed to fetch blob sidecars"+missingBlobsHint, zap.Error(err))
 				return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
 			}
-		} else {
-			f.logger.Error("failed to fetch blob sidecars", zap.Error(err))
-			return nil, false, fmt.Errorf("fetching blob sidecars: %w", err)
+			f.logger.Error("failed to fetch blob sidecars, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
+			blobSidecars = []*deneb.BlobSidecar{}
 		}
 	}
 
@@ -292,6 +259,41 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	f.logger.Info("fetched block", zap.Uint64("slot", requestedSlot), zap.Uint64("parent_slot", parentSlot), zap.Any("timestamp", block.Timestamp))
 	return block, false, nil
+}
+
+// fetchSignedBlockAtSlot fetches the signed block at the given slot, reporting a 404 as a skipped slot.
+func (f *HttpFetcher) fetchSignedBlockAtSlot(ctx context.Context, httpClient eth2client.Service, slot uint64) (block *spec.VersionedSignedBeaconBlock, skip bool, err error) {
+	signedBlock, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(slot, 10))
+	if err != nil {
+		f.logger.Warn("failed to fetch signed block", zap.Error(err))
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) {
+			// todo it might not be safe to just assume that a 404 response means that the slot has been skipped, but
+			// unfortunately Lighthouse doesn't differentiate between skipped blocks and blocks not available yet.
+			// We waited above for the requested block to reach the latest confirmed block, so the question here is if
+			// we received the header before from Lighthouse, can we assume that it also is able to return the signed block?
+			switch apiErr.StatusCode {
+			case 404:
+				f.logger.Info("received a 404, marking slot as skipped", zap.Uint64("slot", slot))
+				return nil, true, nil
+			}
+		}
+		f.logger.Error("failed to fetch signed block", zap.Error(err), zap.Uint64("slot", slot))
+		return nil, false, fmt.Errorf("fetching signed block: %w", err)
+	}
+
+	return signedBlock, false, nil
+}
+
+// takeCachedSignedBlock returns the cached signed block if it is the one at the given slot, consuming the cache.
+func (f *HttpFetcher) takeCachedSignedBlock(slot uint64) (*spec.VersionedSignedBeaconBlock, bool) {
+	cached := f.cachedSignedBlock
+	f.cachedSignedBlock = nil
+	if cached == nil || cached.slot != slot {
+		return nil, false
+	}
+	f.logger.Debug("using signed block from the cache", zap.Uint64("slot", slot))
+	return cached.block, true
 }
 
 func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, httpClient eth2client.Service, block string) (*v1.BeaconBlockHeader, error) {
@@ -373,19 +375,33 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 
 	blobs, err := f.fetchBlobs(ctx, httpClient, root.String())
 	if err != nil {
-		var apiErr *api.Error
-		if errors.As(err, &apiErr) && apiErr.StatusCode == 404 && f.ignoreMissingBlobs {
-			f.logger.Error("failed to fetch blobs, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
-			return envelope, []*deneb.Blob{}, nil
+		if !f.isIgnorableMissingBlobsError(err) {
+			f.logger.Error("failed to fetch blobs"+missingBlobsHint, zap.Error(err))
+			return nil, nil, fmt.Errorf("fetching blobs: %w", err)
 		}
-		f.logger.Error("failed to fetch blobs, if Lighthouse has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error", zap.Error(err))
-		return nil, nil, fmt.Errorf("fetching blobs: %w", err)
+		f.logger.Error("failed to fetch blobs, setting to empty array as --ignore-missing-blobs is set", zap.Error(err))
+		return envelope, []*deneb.Blob{}, nil
 	}
 	if len(blobs) != len(bid.BlobKZGCommitments) {
-		return nil, nil, fmt.Errorf("received %d blobs for %d blob commitments", len(blobs), len(bid.BlobKZGCommitments))
+		// a node that has pruned the blobs may also answer with an empty or partial list instead of a 404
+		err := fmt.Errorf("received %d blobs for %d blob commitments", len(blobs), len(bid.BlobKZGCommitments))
+		if !f.ignoreMissingBlobs {
+			f.logger.Error("blobs are missing"+missingBlobsHint, zap.Error(err), zap.Uint64("slot", slot))
+			return nil, nil, err
+		}
+		f.logger.Error("blobs are missing, setting to empty array as --ignore-missing-blobs is set", zap.Error(err), zap.Uint64("slot", slot))
+		return envelope, []*deneb.Blob{}, nil
 	}
 
 	return envelope, blobs, nil
+}
+
+const missingBlobsHint = ", if the beacon node has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error"
+
+// isIgnorableMissingBlobsError reports whether a blob fetch error is a 404 that --ignore-missing-blobs allows to skip.
+func (f *HttpFetcher) isIgnorableMissingBlobsError(err error) bool {
+	var apiErr *api.Error
+	return f.ignoreMissingBlobs && errors.As(err, &apiErr) && apiErr.StatusCode == 404
 }
 
 // isGloasPayloadCanonical looks up the next canonical block after the given slot and checks whether its bid builds on
@@ -406,6 +422,7 @@ func (f *HttpFetcher) isGloasPayloadCanonical(ctx context.Context, httpClient et
 				}
 				return false, fmt.Errorf("fetching next block at slot %d: %w", childSlot, err)
 			}
+			f.cachedSignedBlock = &cachedSignedBlock{slot: childSlot, block: child}
 
 			if child.Gloas == nil || child.Gloas.Message == nil || child.Gloas.Message.Body == nil ||
 				child.Gloas.Message.Body.SignedExecutionPayloadBid == nil || child.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {

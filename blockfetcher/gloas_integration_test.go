@@ -3,6 +3,7 @@ package blockfetcher
 import (
 	"bytes"
 	"context"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -43,8 +44,11 @@ func TestGloasFetchAgainstBeaconNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.gloasForkSlot == 0 || f.blockTime == 0 {
-		t.Fatalf("unexpected fork slot %d / block time %d", f.gloasForkSlot, f.blockTime)
+	if f.gloasForkSlot == math.MaxUint64 {
+		t.Fatal("the beacon node has no gloas fork scheduled")
+	}
+	if f.blockTime == 0 {
+		t.Fatal("unexpected block time 0")
 	}
 
 	head, err := f.fetchBlockHeader(ctx, client, HeadBlock)
@@ -52,7 +56,7 @@ func TestGloasFetchAgainstBeaconNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	headSlot := uint64(head.Header.Message.Slot)
-	if headSlot < f.gloasForkSlot+slots+1 {
+	if headSlot < slots+1 || headSlot-slots-1 < f.gloasForkSlot {
 		t.Fatalf("head slot %d is not far enough past the gloas fork slot %d", headSlot, f.gloasForkSlot)
 	}
 

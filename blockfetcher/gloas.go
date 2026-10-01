@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
@@ -56,36 +57,26 @@ func toGloasBody(signedBlock *gloas.SignedBeaconBlock, envelope *gloas.SignedExe
 	return res
 }
 
+// The Gloas attestation types have the same fields as the Electra ones (only their SSZ limits differ), so they are
+// converted to the Electra types and reuse their converters. The conversions are checked by the compiler.
+
 func gloasAttesterSlashingsToProto(attesterSlashings []*gloas.AttesterSlashing) []*pbbeacon.AttesterSlashing {
 	res := make([]*pbbeacon.AttesterSlashing, 0, len(attesterSlashings))
 	for _, a := range attesterSlashings {
 		res = append(res, &pbbeacon.AttesterSlashing{
-			Attestation_1: gloasIndexedAttestationToProto(a.Attestation1),
-			Attestation_2: gloasIndexedAttestationToProto(a.Attestation2),
+			Attestation_1: electraIndexedAttestationToProto((*electra.IndexedAttestation)(a.Attestation1)),
+			Attestation_2: electraIndexedAttestationToProto((*electra.IndexedAttestation)(a.Attestation2)),
 		})
 	}
 	return res
-}
-
-func gloasIndexedAttestationToProto(indexedAttestation *gloas.IndexedAttestation) *pbbeacon.IndexedAttestation {
-	return &pbbeacon.IndexedAttestation{
-		AttestingIndices: indexedAttestation.AttestingIndices,
-		Data:             attestationDataToProto(indexedAttestation.Data),
-		Signature:        indexedAttestation.Signature[:],
-	}
 }
 
 func gloasAttestationsToProto(attestations []*gloas.Attestation) []*pbbeacon.ElectraAttestation {
-	res := make([]*pbbeacon.ElectraAttestation, 0, len(attestations))
-	for _, a := range attestations {
-		res = append(res, &pbbeacon.ElectraAttestation{
-			AggregationBits: a.AggregationBits,
-			Data:            attestationDataToProto(a.Data),
-			Signature:       a.Signature[:],
-			CommitteeBits:   a.CommitteeBits[:],
-		})
+	converted := make([]*electra.Attestation, len(attestations))
+	for i, a := range attestations {
+		converted[i] = (*electra.Attestation)(a)
 	}
-	return res
+	return electraAttestationsToProto(converted)
 }
 
 func signedExecutionPayloadBidToProto(signedBid *gloas.SignedExecutionPayloadBid) *pbbeacon.SignedExecutionPayloadBid {
