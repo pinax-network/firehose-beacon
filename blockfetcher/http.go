@@ -41,14 +41,10 @@ type HttpFetcher struct {
 	ignoreMissingBlobs bool
 	// gloasForkSlot is the first slot of the Gloas fork, math.MaxUint64 if the chain has no Gloas fork scheduled
 	gloasForkSlot uint64
-	// cachedSignedBlock keeps the block the Gloas payload check had to look up for the next slot, so that fetching that
-	// slot afterwards does not request it a second time
-	cachedSignedBlock *cachedSignedBlock
-}
-
-type cachedSignedBlock struct {
-	slot  uint64
-	block *spec.VersionedSignedBeaconBlock
+	// cachedSignedBlocks keeps the blocks the Gloas payload check had to look up for the next slot (keyed by slot), so
+	// that fetching that slot afterwards does not request them a second time. Fetch runs concurrently for several
+	// slots, hence the sync.Map.
+	cachedSignedBlocks *sync.Map
 }
 
 func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestBlockRetryInterval time.Duration, ignoreMissingBlobs bool, logger *zap.Logger) (*HttpFetcher, error) {
@@ -58,6 +54,7 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 		logger:                   logger,
 		seenBlockNums:            &sync.Map{},
 		seenBidBlockHashes:       &sync.Map{},
+		cachedSignedBlocks:       &sync.Map{},
 		ignoreMissingBlobs:       ignoreMissingBlobs,
 		gloasForkSlot:            math.MaxUint64,
 	}
@@ -279,20 +276,20 @@ func (f *HttpFetcher) fetchBlockHeaderAtSlot(ctx context.Context, httpClient eth
 // takeCachedSignedBlock returns the cached signed block if it is the block with the given root at the given slot,
 // consuming the cache. The cached block might have been reorged out since we looked it up, hence the root check.
 func (f *HttpFetcher) takeCachedSignedBlock(slot uint64, root phase0.Root) (*spec.VersionedSignedBeaconBlock, bool) {
-	cached := f.cachedSignedBlock
-	f.cachedSignedBlock = nil
-	if cached == nil || cached.slot != slot {
+	cached, ok := f.cachedSignedBlocks.LoadAndDelete(slot)
+	if !ok {
 		return nil, false
 	}
+	cachedBlock := cached.(*spec.VersionedSignedBeaconBlock)
 
-	cachedRoot, err := cached.block.Root()
+	cachedRoot, err := cachedBlock.Root()
 	if err != nil || cachedRoot != root {
 		f.logger.Info("cached block does not match the current block at slot, requesting it again", zap.Uint64("slot", slot), zap.Stringer("cached_root", cachedRoot), zap.Stringer("root", root), zap.Error(err))
 		return nil, false
 	}
 
 	f.logger.Debug("using signed block from the cache", zap.Uint64("slot", slot))
-	return cached.block, true
+	return cachedBlock, true
 }
 
 func (f *HttpFetcher) fetchBlockHeader(ctx context.Context, httpClient eth2client.Service, block string) (*v1.BeaconBlockHeader, error) {
@@ -421,7 +418,7 @@ func (f *HttpFetcher) isGloasPayloadCanonical(ctx context.Context, httpClient et
 				}
 				return false, fmt.Errorf("fetching next block at slot %d: %w", childSlot, err)
 			}
-			f.cachedSignedBlock = &cachedSignedBlock{slot: childSlot, block: child}
+			f.cachedSignedBlocks.Store(childSlot, child)
 
 			if child.Gloas == nil || child.Gloas.Message == nil || child.Gloas.Message.Body == nil ||
 				child.Gloas.Message.Body.SignedExecutionPayloadBid == nil || child.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
