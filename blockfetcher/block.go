@@ -19,7 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar, envelope *gloas.SignedExecutionPayloadEnvelope, blobs []*deneb.Blob) (*pbbstream.Block, error) {
+func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, id, parentID string, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar, envelope *gloas.SignedExecutionPayloadEnvelope, blobs []*deneb.Blob) (*pbbstream.Block, error) {
 
 	libNum := finalizedSlot
 	if finalizedSlot > slot {
@@ -108,8 +108,8 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 
 	res := &pbbstream.Block{
 		Number:    slot,
-		Id:        header.Root.String(),
-		ParentId:  parentRoot.String(),
+		Id:        id,
+		ParentId:  parentID,
 		Timestamp: beaconBlock.Timestamp,
 		LibNum:    libNum,
 		ParentNum: parentSlot,

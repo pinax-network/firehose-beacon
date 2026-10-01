@@ -1,13 +1,32 @@
 package blockfetcher
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// gloasBlockID returns the Firehose block ID of a Gloas block. Whether a block's execution payload became canonical is
+// only decided by the next block, which is itself not final when we emit the block. To let firehose-core detect a later
+// change of the payload status like any other fork (parent ID mismatch), the ID encodes the payload status: it is the
+// beacon block root if the payload was included, and a hash derived from the root otherwise. This mirrors the ePBS
+// fork choice, which tracks (root, payload status) pairs.
+func gloasBlockID(root phase0.Root, payloadCanonical bool) string {
+	if payloadCanonical {
+		return root.String()
+	}
+
+	h := sha256.New()
+	h.Write([]byte("firehose-beacon/empty-payload/"))
+	h.Write(root[:])
+	return fmt.Sprintf("%#x", h.Sum(nil))
+}
 
 // toGloasBody converts a Gloas beacon block. The envelope is nil when the canonical chain did not build on this
 // block's payload, in which case no blobs are embedded either.

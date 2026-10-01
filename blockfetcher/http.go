@@ -33,9 +33,12 @@ type HttpFetcher struct {
 	lastFetchAt              time.Time
 	logger                   *zap.Logger
 	seenBlockNums            *sync.Map
-	genesisTimestamp         uint64
-	blockTime                uint64
-	ignoreMissingBlobs       bool
+	// seenBidBlockHashes maps the roots of seen Gloas blocks to the execution block hash of their bid, needed to derive
+	// the Firehose block ID of a block's parent
+	seenBidBlockHashes *sync.Map
+	genesisTimestamp   uint64
+	blockTime          uint64
+	ignoreMissingBlobs bool
 	// gloasForkSlot is the first slot of the Gloas fork, math.MaxUint64 if the chain has no Gloas fork scheduled
 	gloasForkSlot uint64
 }
@@ -46,6 +49,7 @@ func NewHttp(httpClient eth2client.Service, fetchInterval time.Duration, latestB
 		latestBlockRetryInterval: latestBlockRetryInterval,
 		logger:                   logger,
 		seenBlockNums:            &sync.Map{},
+		seenBidBlockHashes:       &sync.Map{},
 		ignoreMissingBlobs:       ignoreMissingBlobs,
 		gloasForkSlot:            math.MaxUint64,
 	}
@@ -142,24 +146,37 @@ func (f *HttpFetcher) requiredHeadSlot(requestedSlot uint64) uint64 {
 	return requestedSlot
 }
 
-func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
-
+// waitForHeadSlot polls the head block header until the beacon node's head has reached the required slot, refreshing
+// latestConfirmedSlot on the way.
+func (f *HttpFetcher) waitForHeadSlot(ctx context.Context, httpClient eth2client.Service, requiredSlot uint64) error {
 	sleepDuration := time.Duration(0)
-	for f.latestConfirmedSlot < f.requiredHeadSlot(requestedSlot) {
-		time.Sleep(sleepDuration)
+	for f.latestConfirmedSlot < requiredSlot {
+		if sleepDuration > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(sleepDuration):
+			}
+		}
 
 		headBlockHeader, err := f.fetchBlockHeader(ctx, httpClient, HeadBlock)
 		if err != nil {
-			return nil, false, fmt.Errorf("fetching head block num: %w", err)
+			return fmt.Errorf("fetching head block num: %w", err)
 		}
 
 		f.latestConfirmedSlot = uint64(headBlockHeader.Header.Message.Slot)
-		f.logger.Info("got latest confirmed slot block", zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot), zap.Uint64("requested_block_num", requestedSlot))
+		f.logger.Info("got latest confirmed slot block", zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot), zap.Uint64("required_slot", requiredSlot))
 
-		if f.latestConfirmedSlot >= f.requiredHeadSlot(requestedSlot) {
-			break
-		}
 		sleepDuration = f.latestBlockRetryInterval
+	}
+
+	return nil
+}
+
+func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, requestedSlot uint64) (out *pbbstream.Block, skip bool, err error) {
+
+	if err := f.waitForHeadSlot(ctx, httpClient, f.requiredHeadSlot(requestedSlot)); err != nil {
+		return nil, false, err
 	}
 
 	sinceLastFetch := time.Since(f.lastFetchAt)
@@ -223,6 +240,11 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 		}
 	}
 
+	// From Gloas onwards, the Firehose block ID encodes whether the block's execution payload became canonical (see
+	// gloasBlockID), so that firehose-core detects a change of the payload status like any other fork
+	blockID := blockHeader.Root.String()
+	parentID := blockHeader.Header.Message.ParentRoot.String()
+
 	var envelope *gloas.SignedExecutionPayloadEnvelope
 	var blobs []*deneb.Blob
 	var blobSidecars []*deneb.BlobSidecar
@@ -231,6 +253,15 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 		if err != nil {
 			f.logger.Error("failed to fetch gloas execution payload", zap.Error(err), zap.Uint64("slot", requestedSlot))
 			return nil, false, fmt.Errorf("fetching gloas execution payload: %w", err)
+		}
+		blockID = gloasBlockID(blockHeader.Root, envelope != nil)
+
+		if blockHeader.Header.Message.Slot > 0 {
+			parentID, err = f.gloasParentBlockID(ctx, httpClient, signedBlock.Gloas.Message)
+			if err != nil {
+				f.logger.Error("failed to derive parent block id", zap.Error(err), zap.Uint64("slot", requestedSlot))
+				return nil, false, fmt.Errorf("deriving parent block id: %w", err)
+			}
 		}
 	} else {
 		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
@@ -253,7 +284,7 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 
 	f.lastFetchAt = time.Now()
 
-	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, f.genesisTimestamp, f.blockTime, blockHeader, signedBlock, blobSidecars, envelope, blobs)
+	block, err := toBlock(requestedSlot, parentSlot, f.latestFinalizedSlot, f.genesisTimestamp, f.blockTime, blockID, parentID, blockHeader, signedBlock, blobSidecars, envelope, blobs)
 	if err != nil {
 		f.logger.Error("failed to decode block", zap.Error(err), zap.Uint64("slot", requestedSlot))
 		return nil, false, fmt.Errorf("decoding block %d: %w", requestedSlot, err)
@@ -311,6 +342,7 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 		return nil, nil, fmt.Errorf("unsupported block version %s or missing execution payload bid", signedBlock.Version)
 	}
 	bid := signedBlock.Gloas.Message.Body.SignedExecutionPayloadBid.Message
+	f.seenBidBlockHashes.Store(root.String(), bid.BlockHash)
 
 	payloadCanonical, err := f.isGloasPayloadCanonical(ctx, httpClient, slot, root, bid)
 	if err != nil {
@@ -357,31 +389,71 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 }
 
 // isGloasPayloadCanonical looks up the next canonical block after the given slot and checks whether its bid builds on
-// top of the execution payload of the given bid.
+// top of the execution payload of the given bid. If no block exists after the given slot up to the known head (the
+// head is stale, the only child got orphaned, or the spec did not announce the Gloas fork so we did not wait for the
+// next slot), it waits for the head to advance instead of failing, as a failure would be retried with the same stale
+// head forever.
 func (f *HttpFetcher) isGloasPayloadCanonical(ctx context.Context, httpClient eth2client.Service, slot uint64, root phase0.Root, bid *gloas.ExecutionPayloadBid) (bool, error) {
-	for childSlot := slot + 1; childSlot <= f.latestConfirmedSlot; childSlot++ {
-		child, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(childSlot, 10))
-		if err != nil {
-			var apiErr *api.Error
-			if errors.As(err, &apiErr) && apiErr.StatusCode == 404 {
-				// skipped slot
-				continue
+	childSlot := slot + 1
+	for {
+		for ; childSlot <= f.latestConfirmedSlot; childSlot++ {
+			child, err := f.fetchSignedBlock(ctx, httpClient, strconv.FormatUint(childSlot, 10))
+			if err != nil {
+				var apiErr *api.Error
+				if errors.As(err, &apiErr) && apiErr.StatusCode == 404 {
+					// skipped slot
+					continue
+				}
+				return false, fmt.Errorf("fetching next block at slot %d: %w", childSlot, err)
 			}
-			return false, fmt.Errorf("fetching next block at slot %d: %w", childSlot, err)
+
+			if child.Gloas == nil || child.Gloas.Message == nil || child.Gloas.Message.Body == nil ||
+				child.Gloas.Message.Body.SignedExecutionPayloadBid == nil || child.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
+				return false, fmt.Errorf("next block at slot %d has unsupported version %s or is missing its execution payload bid", childSlot, child.Version)
+			}
+			if child.Gloas.Message.ParentRoot != root {
+				return false, fmt.Errorf("next block at slot %d has parent root %s, expected %s", childSlot, child.Gloas.Message.ParentRoot, root)
+			}
+
+			return child.Gloas.Message.Body.SignedExecutionPayloadBid.Message.ParentBlockHash == bid.BlockHash, nil
 		}
 
-		if child.Gloas == nil || child.Gloas.Message == nil || child.Gloas.Message.Body == nil ||
-			child.Gloas.Message.Body.SignedExecutionPayloadBid == nil || child.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
-			return false, fmt.Errorf("next block at slot %d has unsupported version %s or is missing its execution payload bid", childSlot, child.Version)
+		f.logger.Info("no block after slot up to head slot yet, waiting for the head to advance before deciding whether its execution payload is canonical", zap.Uint64("slot", slot), zap.Uint64("latest_confirmed_slot", f.latestConfirmedSlot))
+		if err := f.waitForHeadSlot(ctx, httpClient, f.latestConfirmedSlot+1); err != nil {
+			return false, fmt.Errorf("waiting for a block after slot %d: %w", slot, err)
 		}
-		if child.Gloas.Message.ParentRoot != root {
-			return false, fmt.Errorf("next block at slot %d has parent root %s, expected %s", childSlot, child.Gloas.Message.ParentRoot, root)
-		}
+	}
+}
 
-		return child.Gloas.Message.Body.SignedExecutionPayloadBid.Message.ParentBlockHash == bid.BlockHash, nil
+// gloasParentBlockID derives the Firehose block ID of a Gloas block's parent. Whether the parent's execution payload
+// became canonical is told by this block's bid: it builds on the parent's bid block hash if the parent's payload was
+// included, and on an earlier execution block otherwise. The parent of the first Gloas block is a pre-Gloas block whose
+// ID is just its root.
+func (f *HttpFetcher) gloasParentBlockID(ctx context.Context, httpClient eth2client.Service, block *gloas.BeaconBlock) (string, error) {
+	parentRoot := block.ParentRoot
+
+	var parentBidBlockHash phase0.Hash32
+	if cached, ok := f.seenBidBlockHashes.Load(parentRoot.String()); ok {
+		parentBidBlockHash = cached.(phase0.Hash32)
+	} else {
+		f.logger.Debug("missing parent bid block hash in our buffer, requesting parent block from the beacon node", zap.Uint64("slot", uint64(block.Slot)), zap.String("parent_root", parentRoot.String()))
+		parent, err := f.fetchSignedBlock(ctx, httpClient, parentRoot.String())
+		if err != nil {
+			return "", fmt.Errorf("fetching parent block %s: %w", parentRoot, err)
+		}
+		if parent.Version < spec.DataVersionGloas {
+			return parentRoot.String(), nil
+		}
+		if parent.Gloas == nil || parent.Gloas.Message == nil || parent.Gloas.Message.Body == nil ||
+			parent.Gloas.Message.Body.SignedExecutionPayloadBid == nil || parent.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
+			return "", fmt.Errorf("parent block %s is missing its execution payload bid", parentRoot)
+		}
+		parentBidBlockHash = parent.Gloas.Message.Body.SignedExecutionPayloadBid.Message.BlockHash
+		f.seenBidBlockHashes.Store(parentRoot.String(), parentBidBlockHash)
 	}
 
-	return false, fmt.Errorf("no block after slot %d up to head slot %d yet, cannot decide whether its execution payload is canonical", slot, f.latestConfirmedSlot)
+	parentPayloadCanonical := block.Body.SignedExecutionPayloadBid.Message.ParentBlockHash == parentBidBlockHash
+	return gloasBlockID(parentRoot, parentPayloadCanonical), nil
 }
 
 func (f *HttpFetcher) fetchExecutionPayloadEnvelope(ctx context.Context, httpClient eth2client.Service, block string) (*gloas.SignedExecutionPayloadEnvelope, error) {

@@ -5,10 +5,12 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
 	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	"github.com/rs/zerolog"
 	"go.uber.org/zap/zaptest"
@@ -66,6 +68,7 @@ func TestGloasFetchAgainstBeaconNode(t *testing.T) {
 
 	var withPayload, withoutPayload, skipped, blobs int
 	var previous *pbbeacon.Block
+	previousID := ""
 	for slot := startSlot; slot < startSlot+slots; slot++ {
 		block, skip, err := f.Fetch(ctx, client, slot)
 		if err != nil {
@@ -89,13 +92,19 @@ func TestGloasFetchAgainstBeaconNode(t *testing.T) {
 		}
 		bid := body.SignedExecutionPayloadBid.Message
 
-		// the payload status of the previous block is decided by this block's bid
+		// the payload status of the previous block is decided by this block's bid, and the block IDs encode it
 		if previous != nil && previous.Slot == beaconBlock.ParentSlot {
 			prevBody := previous.GetGloas()
 			builtOnPayload := bytes.Equal(bid.ParentBlockHash, prevBody.SignedExecutionPayloadBid.Message.BlockHash)
 			if builtOnPayload != (prevBody.ExecutionPayloadEnvelope != nil) {
 				t.Fatalf("slot %d: payload present %t, but next block builds on it %t", previous.Slot, prevBody.ExecutionPayloadEnvelope != nil, builtOnPayload)
 			}
+			if block.ParentId != previousID {
+				t.Fatalf("slot %d: parent id %s differs from the previous block id %s", slot, block.ParentId, previousID)
+			}
+		}
+		if expectedID := gloasBlockID(phase0.Root(beaconBlock.Root), body.ExecutionPayloadEnvelope != nil); block.Id != expectedID {
+			t.Fatalf("slot %d: block id %s, expected %s", slot, block.Id, expectedID)
 		}
 
 		if body.ExecutionPayloadEnvelope == nil {
@@ -126,6 +135,7 @@ func TestGloasFetchAgainstBeaconNode(t *testing.T) {
 			blobs += len(body.EmbeddedBlobs)
 		}
 		previous = beaconBlock
+		previousID = block.Id
 	}
 
 	t.Logf("fetched %d slots: %d with payload, %d without payload, %d skipped, %d blobs", slots, withPayload, withoutPayload, skipped, blobs)
@@ -144,9 +154,26 @@ func TestRequiredHeadSlot(t *testing.T) {
 }
 
 func TestIsGloasPayloadCanonicalWithoutNextBlock(t *testing.T) {
-	f := &HttpFetcher{latestConfirmedSlot: 10}
+	// without a later block up to the known head, the check refreshes the head instead of failing; with no client
+	// available the head refresh is what fails here
+	f := &HttpFetcher{latestConfirmedSlot: 10, logger: zaptest.NewLogger(t)}
 	_, err := f.isGloasPayloadCanonical(context.Background(), nil, 10, [32]byte{}, nil)
-	if err == nil {
-		t.Fatal("expected an error when no later block exists")
+	if err == nil || !strings.Contains(err.Error(), "waiting for a block after slot 10") {
+		t.Fatalf("expected a head refresh error when no later block exists, got %v", err)
+	}
+}
+
+func TestGloasBlockID(t *testing.T) {
+	root := phase0.Root{1, 2, 3}
+	full := gloasBlockID(root, true)
+	empty := gloasBlockID(root, false)
+	if full != root.String() {
+		t.Errorf("block id with payload %s, expected the root %s", full, root)
+	}
+	if empty == full || len(empty) != len(full) || !strings.HasPrefix(empty, "0x") {
+		t.Errorf("block id without payload %s should differ from the root but keep its format", empty)
+	}
+	if gloasBlockID(root, false) != empty || gloasBlockID(phase0.Root{4}, false) == empty {
+		t.Error("block id without payload should be deterministic and depend on the root")
 	}
 }
