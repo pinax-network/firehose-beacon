@@ -15,6 +15,7 @@ enum Spec {
   DENEB = 5;
   ELECTRA = 6;
   FUSAKA = 7;
+  GLOAS = 8;
 }
 
 message Block {
@@ -38,6 +39,7 @@ message Block {
     DenebBody deneb = 24;
     ElectraBody electra = 25;
     ElectraBody fusaka = 26;
+    GloasBody gloas = 27;
   }
 
   bytes signature = 30;
@@ -125,6 +127,35 @@ message ElectraBody {
   repeated bytes blob_kzg_commitments = 12;
   ExecutionRequest execution_requests = 13;
 
+  repeated Blob embedded_blobs = 20;
+}
+
+// GloasBody is the beacon block body from the Gloas spec onwards (EIP-7732, enshrined proposer-builder separation).
+// The block no longer carries the execution payload itself, only the builder's signed bid for it. The builder reveals
+// the payload separately in a signed execution payload envelope.
+message GloasBody {
+  bytes rando_reveal = 1;
+  Eth1Data eth1_data = 2;
+  bytes graffiti = 3;
+  repeated ProposerSlashing proposer_slashings = 4;
+  repeated AttesterSlashing attester_slashings = 5;
+  repeated ElectraAttestation attestations = 6;
+  repeated Deposit deposits = 7;
+  repeated SignedVoluntaryExit voluntary_exits = 8;
+  SyncAggregate sync_aggregate = 9;
+  repeated SignedBLSToExecutionChange bls_to_execution_changes = 11;
+  SignedExecutionPayloadBid signed_execution_payload_bid = 14;
+  repeated PayloadAttestation payload_attestations = 15;
+  // execution requests of the parent block's payload, processed in this block
+  ExecutionRequest parent_execution_requests = 16;
+
+  // The execution payload envelope the builder revealed for this block. It is only set when the canonical chain
+  // built on the payload, which is decided by the next canonical block's bid. It is unset when the builder withheld
+  // the payload or the chain built on the empty slot instead.
+  SignedExecutionPayloadEnvelope execution_payload_envelope = 17;
+
+  // Blobs are only embedded when execution_payload_envelope is set. The KZG proofs and inclusion proofs are not
+  // available from the beacon node's blobs endpoint and are left empty.
   repeated Blob embedded_blobs = 20;
 }
 
@@ -302,6 +333,9 @@ message ExecutionRequest {
   repeated DepositRequest deposits = 1;
   repeated WithdrawalRequest withdrawals = 2;
   repeated ConsolidationRequest consolidations = 3;
+  // Gloas onwards
+  repeated BuilderDepositRequest builder_deposits = 4;
+  repeated BuilderExitRequest builder_exits = 5;
 }
 
 message DepositRequest {
@@ -322,4 +356,85 @@ message ConsolidationRequest {
   bytes source_address = 1;
   bytes source_pub_key = 2;
   bytes target_pub_key = 3;
+}
+message BuilderDepositRequest {
+  bytes pub_key = 1;
+  bytes withdrawal_credentials = 2;
+  uint64 amount = 3;
+  bytes signature = 4;
+}
+
+message BuilderExitRequest {
+  bytes source_address = 1;
+  bytes pub_key = 2;
+}
+
+message SignedExecutionPayloadBid {
+  ExecutionPayloadBid message = 1;
+  bytes signature = 2;
+}
+
+message ExecutionPayloadBid {
+  bytes parent_block_hash = 1;
+  bytes parent_block_root = 2;
+  bytes block_hash = 3;
+  bytes prev_randao = 4;
+  bytes fee_recipient = 5;
+  uint64 gas_limit = 6;
+  uint64 builder_index = 7;
+  uint64 slot = 8;
+  uint64 value = 9;
+  uint64 execution_payment = 10;
+  repeated bytes blob_kzg_commitments = 11;
+  bytes execution_requests_root = 12;
+}
+
+message PayloadAttestation {
+  bytes aggregation_bits = 1;
+  PayloadAttestationData data = 2;
+  bytes signature = 3;
+}
+
+message PayloadAttestationData {
+  bytes beacon_block_root = 1;
+  uint64 slot = 2;
+  bool payload_present = 3;
+  bool blob_data_available = 4;
+}
+
+message SignedExecutionPayloadEnvelope {
+  ExecutionPayloadEnvelope message = 1;
+  bytes signature = 2;
+}
+
+message ExecutionPayloadEnvelope {
+  GloasExecutionPayload payload = 1;
+  ExecutionRequest execution_requests = 2;
+  uint64 builder_index = 3;
+  bytes beacon_block_root = 4;
+  bytes parent_beacon_block_root = 5;
+}
+
+message GloasExecutionPayload {
+  bytes parent_hash = 1;
+  bytes fee_recipient = 2;
+  bytes state_root = 3;
+  bytes receipts_root = 4;
+  bytes logs_bloom = 5;
+  bytes prev_randao = 6;
+  uint64 block_number = 7;
+  uint64 gas_limit = 8;
+  uint64 gas_used = 9;
+  google.protobuf.Timestamp timestamp = 10;
+  bytes extra_data = 11;
+  bytes base_fee_per_gas = 12;
+  bytes block_hash = 13;
+  repeated bytes transactions = 14;
+  repeated Withdrawal withdrawals = 15;
+  uint64 blob_gas_used = 16;
+  uint64 excess_blob_gas = 17;
+  // RLP-encoded block access list (EIP-7928)
+  bytes block_access_list = 18;
+  // EIP-7843
+  uint64 slot_number = 19;
 }

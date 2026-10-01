@@ -11,14 +11,16 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 	pbbstream "github.com/streamingfast/bstream/pb/sf/bstream/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	pbbeacon "github.com/pinax-network/firehose-beacon/pb/sf/beacon/type/v1"
 )
 
-func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar) (*pbbstream.Block, error) {
+func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime uint64, id, parentID string, header *v1.BeaconBlockHeader, signedBlock *spec.VersionedSignedBeaconBlock, blobSidecars []*deneb.BlobSidecar, envelope *gloas.SignedExecutionPayloadEnvelope, blobs []*deneb.Blob) (*pbbstream.Block, error) {
 
 	libNum := finalizedSlot
 	if finalizedSlot > slot {
@@ -89,6 +91,13 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 		beaconBlock.Body = &pbbeacon.Block_Fusaka{Fusaka: toElectraBody(signedBlock.Fulu, blobSidecars)}
 		beaconBlock.Signature = signedBlock.Fulu.Signature[:]
 		beaconBlock.Timestamp = beaconBlock.GetFusaka().ExecutionPayload.Timestamp
+	case spec.DataVersionGloas:
+		beaconBlock.Spec = pbbeacon.Spec_GLOAS
+		beaconBlock.Body = &pbbeacon.Block_Gloas{Gloas: toGloasBody(signedBlock.Gloas, envelope, blobs)}
+		beaconBlock.Signature = signedBlock.Gloas.Signature[:]
+		// the slot time can't come from the execution payload anymore, as it is not part of the block and might be
+		// missing altogether
+		beaconBlock.Timestamp = calculateBlockTimestamp(genesisTimestamp, blockTime, beaconBlock.Slot)
 	default:
 		return nil, fmt.Errorf("unimplemented spec: %q", signedBlock.String())
 	}
@@ -100,8 +109,8 @@ func toBlock(slot, parentSlot, finalizedSlot uint64, genesisTimestamp, blockTime
 
 	res := &pbbstream.Block{
 		Number:    slot,
-		Id:        header.Root.String(),
-		ParentId:  parentRoot.String(),
+		Id:        id,
+		ParentId:  parentID,
 		Timestamp: beaconBlock.Timestamp,
 		LibNum:    libNum,
 		ParentNum: parentSlot,
@@ -362,7 +371,7 @@ func bellatrixExecutionPayloadToProto(executionPayload *bellatrix.ExecutionPaylo
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
@@ -381,7 +390,7 @@ func capellaExecutionPayloadToProto(executionPayload *capella.ExecutionPayload) 
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas[:],
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
@@ -401,7 +410,7 @@ func denebExecutionPayloadToProto(executionPayload *deneb.ExecutionPayload) *pbb
 		GasLimit:      executionPayload.GasLimit,
 		GasUsed:       executionPayload.GasUsed,
 		Timestamp:     timestamppb.New(time.Unix(int64(executionPayload.Timestamp), 0)),
-		ExtraData:     executionPayload.ExtraData[:],
+		ExtraData:     executionPayload.ExtraData,
 		BaseFeePerGas: executionPayload.BaseFeePerGas.Bytes(),
 		BlockHash:     executionPayload.BlockHash[:],
 		Transactions:  transactionsToProto(executionPayload.Transactions),
