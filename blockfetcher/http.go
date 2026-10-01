@@ -219,7 +219,8 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 			}
 		}
 	} else {
-		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
+		// requested by root like the signed block, so that a reorg cannot pair the sidecars of another block with it
+		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, blockHeader.Root.String())
 		if err != nil {
 			if !f.isIgnorableMissingBlobsError(err) {
 				f.logger.Error("failed to fetch blob sidecars"+missingBlobsHint, zap.Error(err))
