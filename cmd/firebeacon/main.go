@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pinax-network/firehose-beacon/cmd/firebeacon/http"
 	"github.com/spf13/cobra"
 	"github.com/streamingfast/firehose-core/cmd/tools"
 	"github.com/streamingfast/logging"
 	"go.uber.org/zap"
+
+	"github.com/pinax-network/firehose-beacon/cmd/firebeacon/http"
 )
 
 var logger, tracer = logging.PackageLogger("firebeacon", "github.com/pinax-network/firehose-beacon")
