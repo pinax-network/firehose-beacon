@@ -219,8 +219,15 @@ func (f *HttpFetcher) Fetch(ctx context.Context, httpClient eth2client.Service, 
 			}
 		}
 	} else {
-		// requested by root like the signed block, so that a reorg cannot pair the sidecars of another block with it
-		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, blockHeader.Root.String())
+		// requested by slot: beacon gateways in front of the node only resolve slot numbers for blob endpoints.
+		// verifySlotRoot then rejects the sidecars if a reorg replaced the block at this slot in the meantime.
+		blobSidecars, err = f.fetchBlobSidecars(ctx, httpClient, strconv.FormatUint(requestedSlot, 10))
+		// also after an ignorable 404: a reorg to a skipped slot answers 404 too, and must not emit the old block
+		if err == nil || f.isIgnorableMissingBlobsError(err) {
+			if verifyErr := f.verifySlotRoot(ctx, httpClient, requestedSlot, blockHeader.Root); verifyErr != nil {
+				err = verifyErr
+			}
+		}
 		if err != nil {
 			if !f.isIgnorableMissingBlobsError(err) {
 				f.logger.Error("failed to fetch blob sidecars"+missingBlobsHint, zap.Error(err))
@@ -342,7 +349,13 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 		return envelope, []*deneb.Blob{}, nil
 	}
 
-	blobs, err := f.fetchBlobs(ctx, httpClient, root.String())
+	// requested by slot, see the blob sidecars in Fetch
+	blobs, err := f.fetchBlobs(ctx, httpClient, strconv.FormatUint(slot, 10))
+	if err == nil || f.isIgnorableMissingBlobsError(err) {
+		if verifyErr := f.verifySlotRoot(ctx, httpClient, slot, root); verifyErr != nil {
+			err = verifyErr
+		}
+	}
 	if err != nil {
 		if !f.isIgnorableMissingBlobsError(err) {
 			f.logger.Error("failed to fetch blobs"+missingBlobsHint, zap.Error(err))
@@ -366,6 +379,20 @@ func (f *HttpFetcher) fetchGloasPayload(ctx context.Context, httpClient eth2clie
 }
 
 const missingBlobsHint = ", if the beacon node has pruned them already you need to run this using the --ignore-missing-blobs flag to ignore this error"
+
+// verifySlotRoot checks that the block at slot is still the one with root, so that data fetched by slot number
+// belongs to the block being built. A mismatch means a reorg happened between the two requests; the fetch is retried.
+func (f *HttpFetcher) verifySlotRoot(ctx context.Context, httpClient eth2client.Service, slot uint64, root phase0.Root) error {
+	header, err := f.fetchBlockHeader(ctx, httpClient, strconv.FormatUint(slot, 10))
+	if err != nil {
+		// not wrapped: a 404 here must not pass as a missing-blobs 404 under --ignore-missing-blobs
+		return fmt.Errorf("re-fetching block header of slot %d: %s", slot, err.Error())
+	}
+	if header.Root != root {
+		return fmt.Errorf("block at slot %d changed from %s to %s while fetching its blobs", slot, root, header.Root)
+	}
+	return nil
+}
 
 // isIgnorableMissingBlobsError reports whether a blob fetch error is a 404 that --ignore-missing-blobs allows to skip.
 func (f *HttpFetcher) isIgnorableMissingBlobsError(err error) bool {
