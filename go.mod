@@ -5,7 +5,7 @@ go 1.26.0
 replace github.com/ShinyTrinkets/overseer => github.com/streamingfast/overseer v0.2.1-0.20260917150444-9ebead8ffdef
 
 require (
-	github.com/attestantio/go-eth2-client v0.29.1-0.20260930050333-77b260ef4472
+	github.com/attestantio/go-eth2-client v0.30.0
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/streamingfast/bstream v0.0.2-0.20260921191230-ea57fcbd4fbb
