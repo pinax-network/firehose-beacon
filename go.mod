@@ -1,6 +1,6 @@
 module github.com/pinax-network/firehose-beacon
 
-go 1.26.0
+go 1.27.0
 
 replace github.com/ShinyTrinkets/overseer => github.com/streamingfast/overseer v0.2.1-0.20260917150444-9ebead8ffdef
 
@@ -8,9 +8,9 @@ require (
 	github.com/attestantio/go-eth2-client v0.30.0
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
-	github.com/streamingfast/bstream v0.0.2-0.20260921191230-ea57fcbd4fbb
+	github.com/streamingfast/bstream v0.0.2-0.20261009192206-775b59feeda3
 	github.com/streamingfast/cli v0.0.4-0.20250815192146-d8a233ec3d0b
-	github.com/streamingfast/firehose-core v1.20.1
+	github.com/streamingfast/firehose-core v1.21.0
 	github.com/streamingfast/logging v1.2.3-0.20260810132752-360563ac68a9
 	go.uber.org/zap v1.28.0
 	google.golang.org/protobuf v1.36.12
@@ -172,14 +172,15 @@ require (
 	github.com/streamingfast/diffx v0.0.0-20260428032925-db795b0d8333 // indirect
 	github.com/streamingfast/dmetering v0.0.0-20260901152443-1ff4cd0d617d // indirect
 	github.com/streamingfast/dmetrics v0.0.0-20260819172634-28069dc8018a // indirect
-	github.com/streamingfast/dstore v0.2.4-0.20260911133316-3b0685e87595 // indirect
+	github.com/streamingfast/dsession v0.0.0-20260414190543-79b9846e7c58 // indirect
+	github.com/streamingfast/dstore v0.2.4-0.20261008160055-755341d68ee7 // indirect
 	github.com/streamingfast/dtracing v0.0.0-20260303163312-862cb0fb60c9 // indirect
 	github.com/streamingfast/firehose-networks v0.3.0 // indirect
 	github.com/streamingfast/opaque v0.0.0-20210811180740-0c01d37ea308 // indirect
 	github.com/streamingfast/pbgo v0.0.6-0.20260206150405-2b95acf70437 // indirect
 	github.com/streamingfast/sf-tracing v0.0.0-20260716142341-6172a527bdd6 // indirect
 	github.com/streamingfast/shutter v1.5.0 // indirect
-	github.com/streamingfast/substreams v1.23.0 // indirect
+	github.com/streamingfast/substreams v1.25.1-0.20261016154027-d18ca66fe152 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/teris-io/shortid v0.0.0-20220617161101-71ec9f2aa569 // indirect
@@ -190,31 +191,32 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.46.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
-	go.opentelemetry.io/otel v1.46.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0 // indirect
 	go.opentelemetry.io/otel/exporters/zipkin v1.46.0 // indirect
-	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/trace v1.46.0 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/term v0.47.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.299.0 // indirect
 	google.golang.org/genproto v0.0.0-20260928230214-8a89bd6388cc // indirect
